@@ -123,8 +123,12 @@ export default function ExcelInsightsPage() {
     try {
       const base64Data = await getFileAsBase64();
       const constantFilterObject = constantFilters.reduce((acc, filter) => {
-        if(filter.column && filter.value) {
+        if (filter.column && filter.value) {
+          if (acc[filter.column]) {
+            acc[filter.column] += `, ${filter.value}`;
+          } else {
             acc[filter.column] = filter.value;
+          }
         }
         return acc;
       }, {} as Record<string, string>);
