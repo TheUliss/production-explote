@@ -14,9 +14,12 @@ import { DataTable } from '@/components/data-table';
 
 export type ConstantFilter = { id: string; column: string; value: string };
 
+// Define the columns to always keep and their desired order.
+const REQUIRED_COLUMNS = ["Schedule Date", "Schedule Group", "Customer", "Item Description", "Qty Ordered", "Job Number"];
+
 export default function ExcelInsightsPage() {
   const [file, setFile] = React.useState<File | null>(null);
-  const [fileData, setFileData] = React.useState<any[] | null>(null);
+  const [fileData, setFileData] = React.useState<any[] | null>(null); // This will hold the pre-filtered and sorted data.
   const [headers, setHeaders] = React.useState<string[]>([]);
   const [fileKey, setFileKey] = React.useState(0);
   const [filteredData, setFilteredData] = React.useState<any[] | null>(null);
@@ -54,20 +57,54 @@ export default function ExcelInsightsPage() {
         const json: any[] = xlsx.utils.sheet_to_json(worksheet);
         
         if (Array.isArray(json) && json.length > 0) {
-          const fileHeaders = Object.keys(json[0] as object);
-          setHeaders(fileHeaders);
-          setFileData(json);
+          const originalHeaders = Object.keys(json[0] as object);
+
+          // 1. Determine available columns based on REQUIRED_COLUMNS and their order.
+          const availableHeaders = REQUIRED_COLUMNS.filter(h => originalHeaders.includes(h));
           
-          if (selectedColumns.length === 0) {
-            setSelectedColumns(fileHeaders);
-          } else {
-             // Validate persisted columns
-            setSelectedColumns(prev => prev.filter(col => fileHeaders.includes(col)));
-            if (!fileHeaders.includes(dateColumn)) {
-                setDateColumn('');
-            }
-            setConstantFilters(prev => prev.filter(f => fileHeaders.includes(f.column) || f.column === ''));
+          if (availableHeaders.length === 0) {
+             throw new Error("None of the required columns were found in the file. Required: " + REQUIRED_COLUMNS.join(', '));
           }
+
+          // 2. Pre-filter and reorder columns for every row.
+          let processedData = json.map(row => {
+            const newRow: any = {};
+            availableHeaders.forEach(header => {
+              newRow[header] = row[header];
+            });
+            return newRow;
+          });
+
+          // 3. Sort data by "Schedule Date" ascending.
+          if (availableHeaders.includes("Schedule Date")) {
+            processedData.sort((a, b) => {
+                const dateA = a["Schedule Date"];
+                const dateB = b["Schedule Date"];
+                if (dateA instanceof Date && isValid(dateA) && dateB instanceof Date && isValid(dateB)) {
+                    return dateA.getTime() - dateB.getTime();
+                }
+                if (dateA) return -1;
+                if (dateB) return 1;
+                return 0;
+            });
+          }
+
+          setHeaders(availableHeaders);
+          setFileData(processedData);
+          
+          // Validate persisted states
+          const validPersistedColumns = selectedColumns.filter(col => availableHeaders.includes(col));
+          if (validPersistedColumns.length > 0) {
+            setSelectedColumns(validPersistedColumns);
+          } else {
+            setSelectedColumns(availableHeaders); // Default to all available required columns
+          }
+
+          if (!availableHeaders.includes(dateColumn)) {
+              setDateColumn(availableHeaders.includes("Schedule Date") ? "Schedule Date" : '');
+          }
+
+          setConstantFilters(prev => prev.filter(f => availableHeaders.includes(f.column) || f.column === ''));
 
         } else {
             throw new Error('No data found in the Excel sheet.');
@@ -154,20 +191,8 @@ export default function ExcelInsightsPage() {
         });
     }
 
-    // Sort by date
-    if (dateColumn) {
-        data.sort((a, b) => {
-            const dateA = a[dateColumn];
-            const dateB = b[dateColumn];
-            if (dateA instanceof Date && dateB instanceof Date) {
-                return dateA.getTime() - dateB.getTime();
-            }
-            return 0;
-        });
-    }
-
     setFilteredData(data);
-  }, [fileData, selectedColumns, dateFilter, dateColumn, constantFilters, headers]);
+  }, [fileData, dateFilter, dateColumn, constantFilters]);
 
 
   return (

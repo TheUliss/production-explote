@@ -17,27 +17,30 @@ import { ScrollArea } from './ui/scroll-area';
 
 interface DataTableProps {
   data: any[] | null;
-  headers: string[];
+  headers: string[]; // This has the master order
   visibleColumns: string[];
 }
 
 export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
     
+  // Ensure the columns in the table and download are in the correct order.
+  const orderedVisibleColumns = headers.filter(h => visibleColumns.includes(h));
+
   const handleDownload = () => {
-    if (data && visibleColumns.length > 0) {
+    if (data && orderedVisibleColumns.length > 0) {
+      // The data is already filtered, we just need to pick the visible columns
       const dataToDownload = data.map(row => {
         let projectedRow: any = {};
-        visibleColumns.forEach(col => {
+        orderedVisibleColumns.forEach(col => {
           projectedRow[col] = row[col];
         });
         return projectedRow;
       });
-      downloadDataAsXLSX(dataToDownload, visibleColumns);
+      // The second argument to downloadDataAsXLSX sets the header order.
+      downloadDataAsXLSX(dataToDownload, orderedVisibleColumns);
     }
   }
   
-  const displayableColumns = headers.filter(h => visibleColumns.includes(h));
-
   return (
      <Card className="h-full">
         <CardHeader>
@@ -60,7 +63,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                         <p className="text-sm text-muted-foreground">
                             {data.length} row{data.length === 1 ? '' : 's'} found.
                         </p>
-                        <Button onClick={handleDownload} disabled={data.length === 0 || visibleColumns.length === 0}>
+                        <Button onClick={handleDownload} disabled={data.length === 0 || orderedVisibleColumns.length === 0}>
                             <Download className="mr-2 h-4 w-4" />
                             Download
                         </Button>
@@ -69,7 +72,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                         <Table>
                             <TableHeader className="sticky top-0 bg-background z-10">
                             <TableRow>
-                                {displayableColumns.map((header) => (
+                                {orderedVisibleColumns.map((header) => (
                                 <TableHead key={header}>{header}</TableHead>
                                 ))}
                             </TableRow>
@@ -77,7 +80,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                             <TableBody>
                             {data.length > 0 ? data.map((row, rowIndex) => (
                                 <TableRow key={rowIndex}>
-                                {displayableColumns.map((header) => (
+                                {orderedVisibleColumns.map((header) => (
                                     <TableCell key={header}>
                                         {row[header] instanceof Date ? row[header].toLocaleDateString() : (row[header]?.toString() ?? '')}
                                     </TableCell>
@@ -85,7 +88,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                                 </TableRow>
                             )) : (
                                 <TableRow>
-                                    <TableCell colSpan={displayableColumns.length} className="h-24 text-center">
+                                    <TableCell colSpan={orderedVisibleColumns.length} className="h-24 text-center">
                                         No results.
                                     </TableCell>
                                 </TableRow>
