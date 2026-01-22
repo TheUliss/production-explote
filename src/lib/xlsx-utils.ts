@@ -2,31 +2,18 @@
 
 import * as xlsx from 'xlsx';
 
-export function downloadSummaryAsXLSX(summary: string) {
+export function downloadDataAsXLSX(data: any[], headers: string[]) {
+  // Create worksheet from json
+  const ws = xlsx.utils.json_to_sheet(data, { header: headers });
+
   // Create a new workbook
   const wb = xlsx.utils.book_new();
 
-  // Create worksheet data
-  const ws_data = [
-    ["AI Generated Summary"],
-    [summary]
-  ];
-
-  // Create a worksheet
-  const ws = xlsx.utils.aoa_to_sheet(ws_data);
-
-  // Set column widths and text wrapping
-  ws['!cols'] = [{ wch: 100 }];
-  if (ws['B2']) {
-    ws['B2'].s = { alignment: { wrapText: true } };
-  }
-
-
   // Add the worksheet to the workbook
-  xlsx.utils.book_append_sheet(wb, ws, "Summary");
+  xlsx.utils.book_append_sheet(wb, ws, "Filtered Data");
 
   // Generate a file name
-  const fileName = `excel_summary_${new Date().toISOString()}.xlsx`;
+  const fileName = `excel_filtered_data_${new Date().toISOString().split('T')[0]}.xlsx`;
 
   // Write the workbook and trigger a download
   xlsx.writeFile(wb, fileName);

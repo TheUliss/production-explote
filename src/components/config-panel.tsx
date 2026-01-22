@@ -9,7 +9,7 @@ import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
-import { Columns, Filter, Loader2, MinusCircle, PlusCircle, X } from 'lucide-react';
+import { Columns, Filter, MinusCircle, PlusCircle, X } from 'lucide-react';
 import * as React from 'react';
 
 interface ConfigPanelProps {
@@ -23,9 +23,7 @@ interface ConfigPanelProps {
   setDateColumn: (column: string) => void;
   constantFilters: ConstantFilter[];
   setConstantFilters: React.Dispatch<React.SetStateAction<ConstantFilter[]>>;
-  onGenerate: () => void;
   onClear: () => void;
-  isLoading: boolean;
 }
 
 export function ConfigPanel({
@@ -39,9 +37,7 @@ export function ConfigPanel({
   setDateColumn,
   constantFilters,
   setConstantFilters,
-  onGenerate,
   onClear,
-  isLoading,
 }: ConfigPanelProps) {
 
   const handleSelectAllColumns = (checked: boolean) => {
@@ -81,18 +77,19 @@ export function ConfigPanel({
       </CardHeader>
       <CardContent className="space-y-6">
         <div>
-          <Label className="text-base font-medium flex items-center gap-2"><Columns/> Columns to Summarize</Label>
+          <Label className="text-base font-medium flex items-center gap-2"><Columns/> Columns to Show</Label>
           <Separator className="my-2" />
           <div className="flex items-center space-x-2 mb-2">
             <Checkbox
               id="select-all"
               checked={headers.length > 0 && selectedColumns.length === headers.length}
               onCheckedChange={handleSelectAllColumns}
+              disabled={headers.length === 0}
             />
             <Label htmlFor="select-all" className="font-medium">Select All</Label>
           </div>
           <ScrollArea className="h-40 rounded-md border p-2">
-            {headers.map((header) => (
+            {headers.length > 0 ? headers.map((header) => (
               <div key={header} className="flex items-center space-x-2 p-1">
                 <Checkbox
                   id={header}
@@ -101,7 +98,7 @@ export function ConfigPanel({
                 />
                 <Label htmlFor={header} className="font-normal w-full truncate" title={header}>{header}</Label>
               </div>
-            ))}
+            )) : <p className="text-sm text-muted-foreground text-center p-4">Upload a file to see columns.</p>}
           </ScrollArea>
         </div>
         
@@ -113,7 +110,7 @@ export function ConfigPanel({
           <div className='space-y-2 rounded-md border p-3'>
             <Label>Date Filter</Label>
             <div className="grid grid-cols-2 gap-2">
-              <Select value={dateColumn} onValueChange={setDateColumn}>
+              <Select value={dateColumn} onValueChange={setDateColumn} disabled={headers.length === 0}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select date column" />
                 </SelectTrigger>
@@ -139,7 +136,7 @@ export function ConfigPanel({
           <div className='space-y-2 rounded-md border p-3'>
              <div className="flex items-center justify-between">
                 <Label>Constant Values</Label>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={addConstantFilter}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={addConstantFilter} disabled={headers.length === 0}>
                     <PlusCircle className="h-4 w-4" />
                 </Button>
             </div>
@@ -154,7 +151,7 @@ export function ConfigPanel({
                         </SelectContent>
                     </Select>
                     <Input
-                        placeholder="Value"
+                        placeholder="Value(s), comma separated"
                         value={filter.value}
                         onChange={(e) => updateConstantFilter(filter.id, 'value', e.target.value)}
                         className="flex-1"
@@ -164,17 +161,10 @@ export function ConfigPanel({
                     </Button>
                 </div>
             ))}
+             {constantFilters.length === 0 && <p className="text-sm text-muted-foreground text-center p-2">No constant filters added.</p>}
           </div>
         </div>
       </CardContent>
-      <CardFooter>
-        <Button className="w-full" size="lg" onClick={onGenerate} disabled={isLoading}>
-          {isLoading ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : null}
-          Generate Summary
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

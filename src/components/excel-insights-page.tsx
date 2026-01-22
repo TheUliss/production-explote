@@ -3,12 +3,14 @@
 import * as React from 'react';
 import * as xlsx from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
-import { generateSummaryAction } from '@/app/actions';
+import { useLocalStorage } from '@/hooks/use-local-storage';
+import { addDays, endOfMonth, startOfMonth, startOfToday, isValid } from 'date-fns';
 
 import AppHeader from '@/components/app-header';
 import { FileUpload } from '@/components/file-upload';
 import { ConfigPanel } from '@/components/config-panel';
-import { SummaryDisplay } from '@/components/summary-display';
+import { DataTable } from '@/components/data-table';
+
 
 export type ConstantFilter = { id: string; column: string; value: string };
 
@@ -17,52 +19,56 @@ export default function ExcelInsightsPage() {
   const [fileData, setFileData] = React.useState<any[] | null>(null);
   const [headers, setHeaders] = React.useState<string[]>([]);
   const [fileKey, setFileKey] = React.useState(0);
+  const [filteredData, setFilteredData] = React.useState<any[] | null>(null);
 
-  const [selectedColumns, setSelectedColumns] = React.useState<string[]>([]);
-  const [dateFilter, setDateFilter] = React.useState<string>('all');
-  const [dateColumn, setDateColumn] = React.useState<string>('');
-  const [constantFilters, setConstantFilters] = React.useState<ConstantFilter[]>([]);
+  // Persistent State
+  const [selectedColumns, setSelectedColumns] = useLocalStorage<string[]>('excel-insights-selectedColumns', []);
+  const [dateFilter, setDateFilter] = useLocalStorage<string>('excel-insights-dateFilter', 'all');
+  const [dateColumn, setDateColumn] = useLocalStorage<string>('excel-insights-dateColumn', '');
+  const [constantFilters, setConstantFilters] = useLocalStorage<ConstantFilter[]>('excel-insights-constantFilters', []);
 
-  const [summary, setSummary] = React.useState<string | null>(null);
-  const [isLoading, setIsLoading] = React.useState(false);
 
   const { toast } = useToast();
 
-  const resetState = () => {
+  const resetFileUpload = () => {
     setFile(null);
     setFileData(null);
     setHeaders([]);
-    setSelectedColumns([]);
-    setDateFilter('all');
-    setDateColumn('');
-    setConstantFilters([]);
-    setSummary(null);
-    setIsLoading(false);
+    setFilteredData(null);
     setFileKey(prev => prev + 1);
   };
 
   const handleFile = (uploadedFile: File) => {
     if (!uploadedFile) return;
 
-    resetState();
+    resetFileUpload();
     setFile(uploadedFile);
 
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = xlsx.read(data, { type: 'array' });
+        const workbook = xlsx.read(data, { type: 'array', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json = xlsx.utils.sheet_to_json(worksheet, { header: 1 });
+        const json: any[] = xlsx.utils.sheet_to_json(worksheet);
         
-        if (Array.isArray(json) && json.length > 1) {
-          const fileHeaders = json[0] as string[];
-          const fileRows = json.slice(1);
-
+        if (Array.isArray(json) && json.length > 0) {
+          const fileHeaders = Object.keys(json[0] as object);
           setHeaders(fileHeaders);
-          setFileData(fileRows);
-          setSelectedColumns(fileHeaders); // Select all by default
+          setFileData(json);
+          
+          if (selectedColumns.length === 0) {
+            setSelectedColumns(fileHeaders);
+          } else {
+             // Validate persisted columns
+            setSelectedColumns(prev => prev.filter(col => fileHeaders.includes(col)));
+            if (!fileHeaders.includes(dateColumn)) {
+                setDateColumn('');
+            }
+            setConstantFilters(prev => prev.filter(f => fileHeaders.includes(f.column) || f.column === ''));
+          }
+
         } else {
             throw new Error('No data found in the Excel sheet.');
         }
@@ -73,7 +79,7 @@ export default function ExcelInsightsPage() {
           title: 'Error reading file',
           description: error instanceof Error ? error.message : 'Could not process the Excel file. Please ensure it is valid.',
         });
-        resetState();
+        resetFileUpload();
       }
     };
     reader.onerror = () => {
@@ -82,80 +88,87 @@ export default function ExcelInsightsPage() {
         title: 'File Reading Error',
         description: 'An error occurred while reading the file.',
       });
-      resetState();
+      resetFileUpload();
     };
     reader.readAsArrayBuffer(uploadedFile);
   };
 
-  const getFileAsBase64 = (): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      if (!file) {
-        reject('No file selected');
-        return;
-      }
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]);
-      };
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
-  const handleGenerateSummary = async () => {
+  React.useEffect(() => {
     if (!fileData) {
-      toast({ variant: 'destructive', title: 'No file data available' });
+      setFilteredData(null);
       return;
     }
-    if(selectedColumns.length === 0) {
-        toast({ variant: 'destructive', title: 'No columns selected', description: 'Please select at least one column to summarize.' });
-        return;
-    }
-    if(dateFilter !== 'all' && !dateColumn) {
-        toast({ variant: 'destructive', title: 'Date column not selected', description: 'Please select a column containing dates to apply a date filter.' });
-        return;
-    }
 
-    setIsLoading(true);
-    setSummary(null);
+    let data = [...fileData];
 
-    try {
-      const base64Data = await getFileAsBase64();
-      const constantFilterObject = constantFilters.reduce((acc, filter) => {
+    // Constant filters
+    const constantFilterObject = constantFilters.reduce((acc, filter) => {
         if (filter.column && filter.value) {
           if (acc[filter.column]) {
-            acc[filter.column] += `, ${filter.value}`;
+            acc[filter.column] += `,${filter.value}`;
           } else {
             acc[filter.column] = filter.value;
           }
         }
         return acc;
-      }, {} as Record<string, string>);
-      
-      const result = await generateSummaryAction({
-        excelData: base64Data,
-        selectedColumns,
-        dateFilter: dateFilter,
-        dateColumn: dateColumn,
-        constantFilters: constantFilterObject,
-      });
+    }, {} as Record<string, string>);
 
-      if (result.error) {
-        throw new Error(result.error);
-      }
-      setSummary(result.summary ?? 'No summary was generated.');
-    } catch (error) {
-      console.error(error);
-      toast({
-        variant: 'destructive',
-        title: 'Summary Generation Failed',
-        description: error instanceof Error ? error.message : 'An unknown error occurred.',
-      });
-    } finally {
-      setIsLoading(false);
+    for (const column in constantFilterObject) {
+        if (Object.prototype.hasOwnProperty.call(constantFilterObject, column) && constantFilterObject[column]) {
+            const filterValues = constantFilterObject[column]
+                .split(',')
+                .map(v => v.trim().toLowerCase())
+                .filter(Boolean);
+
+            if (filterValues.length > 0) {
+                data = data.filter(row => {
+                    const rowValue = row[column]?.toString().toLowerCase() || '';
+                    return filterValues.includes(rowValue);
+                });
+            }
+        }
     }
-  };
+
+    // Date filters
+    if (dateFilter && dateFilter !== 'all' && dateColumn) {
+        const today = startOfToday();
+        data = data.filter(row => {
+            const itemDate = row[dateColumn];
+            if (!(itemDate instanceof Date) || !isValid(itemDate)) {
+                return false;
+            }
+
+            switch (dateFilter) {
+                case 'overdue':
+                    return itemDate < today;
+                case 'due-soon-7':
+                    const aWeekFromNow = addDays(today, 7);
+                    return itemDate >= today && itemDate <= aWeekFromNow;
+                case 'current-month':
+                    const monthStart = startOfMonth(today);
+                    const monthEnd = endOfMonth(today);
+                    return itemDate >= monthStart && itemDate <= monthEnd;
+                default:
+                    return true;
+            }
+        });
+    }
+
+    // Sort by date
+    if (dateColumn) {
+        data.sort((a, b) => {
+            const dateA = a[dateColumn];
+            const dateB = b[dateColumn];
+            if (dateA instanceof Date && dateB instanceof Date) {
+                return dateA.getTime() - dateB.getTime();
+            }
+            return 0;
+        });
+    }
+
+    setFilteredData(data);
+  }, [fileData, selectedColumns, dateFilter, dateColumn, constantFilters, headers]);
+
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -177,13 +190,11 @@ export default function ExcelInsightsPage() {
                 setDateColumn={setDateColumn}
                 constantFilters={constantFilters}
                 setConstantFilters={setConstantFilters}
-                onGenerate={handleGenerateSummary}
-                onClear={resetState}
-                isLoading={isLoading}
+                onClear={resetFileUpload}
               />
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
-              <SummaryDisplay summary={summary} isLoading={isLoading} />
+              <DataTable data={filteredData} headers={headers} visibleColumns={selectedColumns} />
             </div>
           </div>
         )}
