@@ -38,26 +38,31 @@ const GenerateAISummaryOutputSchema = z.object({
 
 export type GenerateAISummaryOutput = z.infer<typeof GenerateAISummaryOutputSchema>;
 
-async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<string> {
+async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<{ data: string, rowCount: number }> {
   const { excelData, selectedColumns, dateFilter, dateColumn, constantFilters } = input;
 
   const buffer = Buffer.from(excelData, 'base64');
   const workbook = xlsx.read(buffer, { type: 'buffer', cellDates: true });
   const sheetName = workbook.SheetNames[0];
   const worksheet = workbook.Sheets[sheetName];
-  let jsonData: any[] = xlsx.utils.sheet_to_json(worksheet);
+  let filteredData: any[] = xlsx.utils.sheet_to_json(worksheet);
 
-  if (jsonData.length === 0) {
-    return 'The Excel file has no data.';
+  if (filteredData.length === 0) {
+    return { data: 'The Excel file has no data.', rowCount: 0 };
   }
 
-  // Apply constant filters
+  // First, filter rows based on the constant values provided.
+  // This removes any rows that do not match the filter criteria.
   if (constantFilters) {
     for (const column in constantFilters) {
       if (Object.prototype.hasOwnProperty.call(constantFilters, column) && constantFilters[column]) {
-        const filterValues = constantFilters[column].split(',').map(v => v.trim().toLowerCase());
+        const filterValues = constantFilters[column]
+          .split(',')
+          .map(v => v.trim().toLowerCase())
+          .filter(Boolean); // Remove empty strings from filter values
+
         if (filterValues.length > 0) {
-          jsonData = jsonData.filter(row => {
+          filteredData = filteredData.filter(row => {
             const rowValue = row[column]?.toString().toLowerCase() || '';
             return filterValues.includes(rowValue);
           });
@@ -66,11 +71,11 @@ async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<strin
     }
   }
 
-  // Apply date filters
+  // Then, apply date filters to the already filtered data.
   if (dateFilter && dateFilter !== 'all' && dateColumn) {
     const today = startOfToday();
 
-    jsonData = jsonData.filter(row => {
+    filteredData = filteredData.filter(row => {
       const itemDate = row[dateColumn];
       if (!(itemDate instanceof Date) || !isValid(itemDate)) {
         return false;
@@ -92,9 +97,9 @@ async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<strin
     });
   }
 
-  // Sort data
+  // Sort the resulting data
   if (dateColumn) {
-    jsonData.sort((a, b) => {
+    filteredData.sort((a, b) => {
       const dateA = a[dateColumn];
       const dateB = b[dateColumn];
       if (dateA instanceof Date && dateB instanceof Date) {
@@ -104,8 +109,8 @@ async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<strin
     });
   }
 
-  // Select columns for the final output
-  const processedData = jsonData.map(row => {
+  // Second, from the filtered rows, select only the columns the user wants to include in the summary.
+  const dataWithSelectedColumns = filteredData.map(row => {
     const newRow: Record<string, any> = {};
     selectedColumns.forEach(col => {
       newRow[col] = row[col];
@@ -113,15 +118,20 @@ async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<strin
     return newRow;
   });
 
-  if (processedData.length === 0) {
-    return "No data matches the specified filters.";
+  if (dataWithSelectedColumns.length === 0) {
+    return { data: "No data matches the specified filters.", rowCount: 0 };
   }
   
-  // Convert to Markdown table
+  // OPTIMIZATION: Limit rows sent to the AI to avoid exceeding size limits
+  const MAX_ROWS = 100;
+  const limitedData = dataWithSelectedColumns.slice(0, MAX_ROWS);
+  const totalRows = dataWithSelectedColumns.length;
+  
+  // Convert the final data to a Markdown table
   const headers = selectedColumns;
   let markdownTable = `| ${headers.join(' | ')} |\n`;
   markdownTable += `| ${headers.map(() => '---').join(' | ')} |\n`;
-  processedData.forEach(row => {
+  limitedData.forEach(row => {
     const rowValues = headers.map(header => {
       const value = row[header];
       if (value instanceof Date) {
@@ -132,16 +142,26 @@ async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<strin
     markdownTable += `| ${rowValues.join(' | ')} |\n`;
   });
 
-  return markdownTable;
+  // Add a note if more rows exist than are shown
+  if (totalRows > MAX_ROWS) {
+    markdownTable += `\n*Note: Showing first ${MAX_ROWS} of ${totalRows} total rows.*\n`;
+  }
+
+  return { data: markdownTable, rowCount: totalRows };
 }
 
 
 const summarizeMarkdownPrompt = ai.definePrompt({
   name: 'summarizeMarkdownPrompt',
-  input: { schema: z.object({ markdownTable: z.string() }) },
+  input: { schema: z.object({ 
+    markdownTable: z.string(),
+    totalRows: z.number()
+  }) },
   output: { schema: GenerateAISummaryOutputSchema },
   prompt: `You are an AI assistant tasked with summarizing data from Excel files.
-Based on the provided markdown table, generate a concise, natural language summary. Highlight key insights, totals, and important trends. Do not just repeat the table data.
+Based on the provided markdown table (showing up to 100 rows from a total of {{{totalRows}}} rows), generate a concise, natural language summary. Highlight key insights, totals, and important trends. Do not just repeat the table data.
+
+If the sample is less than the total rows, acknowledge this and base your summary on the visible data while noting that the complete dataset contains {{{totalRows}}} rows.
 
 Data:
 {{{markdownTable}}}
@@ -155,13 +175,16 @@ const generateAISummaryFlow = ai.defineFlow(
     outputSchema: GenerateAISummaryOutputSchema,
   },
   async input => {
-    const markdownTable = await getExcelDataSummary(input);
+    const { data: markdownTable, rowCount } = await getExcelDataSummary(input);
 
     if (markdownTable === 'The Excel file has no data.' || markdownTable === "No data matches the specified filters.") {
       return { summary: markdownTable };
     }
 
-    const {output} = await summarizeMarkdownPrompt({ markdownTable });
+    const {output} = await summarizeMarkdownPrompt({ 
+      markdownTable,
+      totalRows: rowCount
+    });
     return {summary: output!.summary};
   }
 );
