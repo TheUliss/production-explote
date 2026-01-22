@@ -24,6 +24,7 @@ export default function ExcelInsightsPage() {
   const [fileKey, setFileKey] = React.useState(0);
   const [filteredData, setFilteredData] = React.useState<any[] | null>(null);
   const [dataForSummaries, setDataForSummaries] = React.useState<any[] | null>(null);
+  const [packedSerials, setPackedSerials] = React.useState<Set<string>>(new Set());
 
   // Persistent State
   const [selectedColumns, setSelectedColumns] = useLocalStorage<string[]>('excel-insights-selectedColumns', []);
@@ -40,6 +41,7 @@ export default function ExcelInsightsPage() {
     setHeaders([]);
     setFilteredData(null);
     setDataForSummaries(null);
+    setPackedSerials(new Set());
     setFileKey(prev => prev + 1);
   };
 
@@ -131,6 +133,64 @@ export default function ExcelInsightsPage() {
     };
     reader.readAsArrayBuffer(uploadedFile);
   };
+  
+  const handlePackingFile = (packingFile: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = new Uint8Array(e.target?.result as ArrayBuffer);
+            const workbook = xlsx.read(data, { type: 'array' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json: any[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+
+            if (json.length < 2) { // must have header and at least one row
+                throw new Error("Packing file is empty or has no data rows.");
+            }
+
+            const headers = json[0].map(h => h?.toString().trim());
+            const serialsColIndex = headers.findIndex(h => h === 'Seriales');
+
+            if (serialsColIndex === -1) {
+                throw new Error('Could not find a "Seriales" column in the packing file.');
+            }
+
+            const loadedSerials = new Set<string>();
+            // Start from 1 to skip header row
+            for (let i = 1; i < json.length; i++) {
+                const serial = json[i][serialsColIndex]?.toString().trim();
+                if (serial) {
+                    loadedSerials.add(serial);
+                }
+            }
+
+            setPackedSerials(loadedSerials);
+
+            toast({
+                title: "Packing Data Loaded",
+                description: `${loadedSerials.size} packed serials have been successfully loaded.`,
+            });
+        } catch (error) {
+            console.error(error);
+            toast({
+                variant: 'destructive',
+                title: 'Error reading packing file',
+                description: error instanceof Error ? error.message : 'Could not process the packing data file.',
+            });
+            setPackedSerials(new Set()); // Reset on error
+        }
+    };
+    reader.onerror = () => {
+        toast({
+            variant: 'destructive',
+            title: 'File Reading Error',
+            description: 'An error occurred while reading the packing data file.',
+        });
+        setPackedSerials(new Set());
+    };
+    reader.readAsArrayBuffer(packingFile);
+};
+
 
   React.useEffect(() => {
     if (!fileData) {
@@ -225,7 +285,15 @@ export default function ExcelInsightsPage() {
               />
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
-              <DataTable data={filteredData} headers={headers} visibleColumns={selectedColumns} originalData={fileData} dataForSummaries={dataForSummaries} />
+              <DataTable 
+                data={filteredData} 
+                headers={headers} 
+                visibleColumns={selectedColumns} 
+                originalData={fileData} 
+                dataForSummaries={dataForSummaries}
+                packedSerials={packedSerials}
+                onPackingFileSelect={handlePackingFile}
+              />
             </div>
           </div>
         )}

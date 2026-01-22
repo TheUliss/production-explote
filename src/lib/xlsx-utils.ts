@@ -31,6 +31,7 @@ interface DownloadReportParams {
   allFilteredData: any[];
   originalData: any[];
   includeSummary?: boolean;
+  packedSerials?: Set<string>;
 }
 
 export function downloadReport({
@@ -40,6 +41,7 @@ export function downloadReport({
   allFilteredData,
   originalData,
   includeSummary = true,
+  packedSerials,
 }: DownloadReportParams): { failedJobs: string[] } {
   const wb = xlsx.utils.book_new();
   const failedJobs: string[] = [];
@@ -152,14 +154,15 @@ export function downloadReport({
         const serials = [];
         for (let i = 1; i <= qtyOrdered; i++) {
             const serial = `${jobNumber}-01-${i.toString().padStart(padLength, '0')}`;
-            serials.push([serial]);
+            const status = packedSerials?.has(serial) ? 'Packed' : '';
+            serials.push([serial, status]);
         }
 
         const dataForSheet = [
             ['Job Number', jobNumber],
             ['Schedule Date', formattedDate],
             [], // Empty row
-            ['Seriales'],
+            ['Seriales', 'Status'],
             ...serials
         ];
 

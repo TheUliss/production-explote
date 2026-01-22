@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from './ui/checkbox';
 import { cn } from '@/lib/utils';
 import { addDays, startOfToday } from 'date-fns';
+import { Input } from './ui/input';
 
 interface DataTableProps {
   data: any[] | null;
@@ -25,9 +26,19 @@ interface DataTableProps {
   visibleColumns: string[];
   originalData: any[] | null;
   dataForSummaries: any[] | null;
+  packedSerials: Set<string>;
+  onPackingFileSelect: (file: File) => void;
 }
 
-export function DataTable({ data, headers, visibleColumns, originalData, dataForSummaries }: DataTableProps) {
+export function DataTable({ 
+    data, 
+    headers, 
+    visibleColumns, 
+    originalData, 
+    dataForSummaries, 
+    packedSerials, 
+    onPackingFileSelect 
+}: DataTableProps) {
   const [selectedRows, setSelectedRows] = React.useState<number[]>([]);
   const { toast } = useToast();
     
@@ -36,6 +47,13 @@ export function DataTable({ data, headers, visibleColumns, originalData, dataFor
   React.useEffect(() => {
     setSelectedRows([]);
   }, [data]);
+
+  const handlePackingFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      onPackingFileSelect(e.target.files[0]);
+      e.target.value = '';
+    }
+  };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -71,6 +89,7 @@ export function DataTable({ data, headers, visibleColumns, originalData, dataFor
         allFilteredData: data,
         originalData: dataForSummaries,
         includeSummary: true,
+        packedSerials,
     });
 
     if (selectedRows.length === 0) {
@@ -114,6 +133,7 @@ export function DataTable({ data, headers, visibleColumns, originalData, dataFor
         allFilteredData: data,
         originalData: originalData,
         includeSummary: false,
+        packedSerials,
     });
 
     if (failedJobs.length > 0) {
@@ -164,6 +184,25 @@ export function DataTable({ data, headers, visibleColumns, originalData, dataFor
                 </div>
             ) : (
                 <div className='space-y-4'>
+                    <div className="border rounded-md p-4 space-y-2 bg-card">
+                        <h4 className="font-semibold">Packing Data Cross-Reference</h4>
+                        <p className="text-sm text-muted-foreground">
+                            Upload a file with packed serials to mark them in the report. The file must contain a column named "Seriales".
+                        </p>
+                        <Input
+                            id="packing-file"
+                            type="file"
+                            accept=".xlsx, .xls"
+                            onChange={handlePackingFileUpload}
+                            className="max-w-sm file:text-primary file:font-semibold"
+                        />
+                        {packedSerials.size > 0 && 
+                            <p className="text-sm text-green-500 font-medium">
+                                {packedSerials.size} packed serials loaded. They will be marked in the downloaded report.
+                            </p>
+                        }
+                    </div>
+
                     <div className="flex justify-between items-center">
                         <p className="text-sm text-muted-foreground">
                             {data.length} row{data.length === 1 ? '' : 's'} found. {selectedRows.length > 0 && `(${selectedRows.length} selected)`}
