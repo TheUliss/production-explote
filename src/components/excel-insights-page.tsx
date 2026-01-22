@@ -15,7 +15,7 @@ import { DataTable } from '@/components/data-table';
 export type ConstantFilter = { id: string; column: string; value: string };
 
 // Define the columns to always keep and their desired order.
-const REQUIRED_COLUMNS = ["Schedule Date", "Schedule Group", "Customer", "Item Description", "Qty Ordered", "Job Number"];
+const REQUIRED_COLUMNS = ["Schedule Date", "Schedule Group", "Job Number", "Item Description", "Qty Ordered", "Customer"];
 
 export default function ExcelInsightsPage() {
   const [file, setFile] = React.useState<File | null>(null);
