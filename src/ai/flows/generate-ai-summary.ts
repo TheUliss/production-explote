@@ -38,13 +38,7 @@ const GenerateAISummaryOutputSchema = z.object({
 
 export type GenerateAISummaryOutput = z.infer<typeof GenerateAISummaryOutputSchema>;
 
-const excelDataTool = ai.defineTool({
-  name: 'getExcelDataSummary',
-  description: 'This tool analyzes excel data, filters it based on column selection, date filters, and constant values, and returns the processed data as a markdown table for summarization.',
-  inputSchema: GenerateAISummaryInputSchema,
-  outputSchema: z.string(),
-},
-async (input) => {
+async function getExcelDataSummary(input: GenerateAISummaryInput): Promise<string> {
   const { excelData, selectedColumns, dateFilter, dateColumn, constantFilters } = input;
 
   const buffer = Buffer.from(excelData, 'base64');
@@ -139,20 +133,19 @@ async (input) => {
   });
 
   return markdownTable;
-});
+}
 
-const generateAISummaryPrompt = ai.definePrompt({
-  name: 'generateAISummaryPrompt',
-  tools: [excelDataTool],
-  input: {schema: GenerateAISummaryInputSchema},
-  output: {schema: GenerateAISummaryOutputSchema},
+
+const summarizeMarkdownPrompt = ai.definePrompt({
+  name: 'summarizeMarkdownPrompt',
+  input: { schema: z.object({ markdownTable: z.string() }) },
+  output: { schema: GenerateAISummaryOutputSchema },
   prompt: `You are an AI assistant tasked with summarizing data from Excel files.
+Based on the provided markdown table, generate a concise, natural language summary. Highlight key insights, totals, and important trends. Do not just repeat the table data.
 
-The user has provided an Excel file and selected columns and filters.
-
-Use the "getExcelDataSummary" tool to get the processed data based on the user's configuration.
-
-The tool will return a markdown table. Your task is to generate a concise, natural language summary based on that table. Highlight key insights, totals, and important trends. Do not just repeat the table data.`,
+Data:
+{{{markdownTable}}}
+`,
 });
 
 const generateAISummaryFlow = ai.defineFlow(
@@ -162,7 +155,13 @@ const generateAISummaryFlow = ai.defineFlow(
     outputSchema: GenerateAISummaryOutputSchema,
   },
   async input => {
-    const {output} = await generateAISummaryPrompt(input);
+    const markdownTable = await getExcelDataSummary(input);
+
+    if (markdownTable === 'The Excel file has no data.' || markdownTable === "No data matches the specified filters.") {
+      return { summary: markdownTable };
+    }
+
+    const {output} = await summarizeMarkdownPrompt({ markdownTable });
     return {summary: output!.summary};
   }
 );
