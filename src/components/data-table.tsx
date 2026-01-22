@@ -71,25 +71,33 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
         allFilteredData: data,
     });
 
+    if (selectedRows.length === 0) {
+      toast({
+        title: "Summary Downloaded",
+        description: "The filtered data summary has been downloaded.",
+      });
+      return;
+    }
+
     if (failedJobs.length > 0) {
         const totalSelected = selectedRows.length;
         if (failedJobs.length === totalSelected) {
             toast({
                 variant: "destructive",
                 title: "Serial Generation Failed",
-                description: "Could not generate serials. All selected rows have invalid data.",
+                description: "Could not generate serials for any selected rows due to invalid data. The summary sheet was still downloaded.",
             });
         } else {
             toast({
                 variant: "destructive",
-                title: "Partial Serial Generation Failure",
-                description: `Could not generate serials for some jobs due to invalid data: ${failedJobs.join(', ')}. The report has been downloaded.`,
+                title: "Partial Download Failure",
+                description: `Serials were generated, but failed for: ${failedJobs.join(', ')}. The full report has been downloaded.`,
             });
         }
-    } else if (selectedRows.length > 0) {
+    } else {
         toast({
             title: "Report Downloaded",
-            description: "The summary and selected serials have been downloaded.",
+            description: "The summary and all selected serials have been downloaded successfully.",
         });
     }
   }
