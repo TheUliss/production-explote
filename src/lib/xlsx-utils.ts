@@ -18,3 +18,53 @@ export function downloadDataAsXLSX(data: any[], headers: string[]) {
   // Write the workbook and trigger a download
   xlsx.writeFile(wb, fileName);
 }
+
+
+export function downloadSerialsAsXLSX(row: any): boolean {
+    const jobNumber = row['Job Number']?.toString() || 'UNKNOWN_JOB';
+    const scheduleDate = row['Schedule Date'];
+    const qtyOrdered = parseInt(row['Qty Ordered'], 10);
+
+    if (!jobNumber || !(scheduleDate instanceof Date) || isNaN(qtyOrdered) || qtyOrdered <= 0) {
+        console.error("Invalid data for serial generation", { row });
+        return false;
+    }
+    
+    const formattedDate = scheduleDate.toLocaleDateString();
+
+    const serials = [];
+    for (let i = 1; i <= qtyOrdered; i++) {
+        const serial = `${jobNumber}-01-${i.toString().padStart(2, '0')}`;
+        serials.push([serial]);
+    }
+
+    const dataForSheet = [
+        ['Job Number', jobNumber],
+        ['Schedule Date', formattedDate],
+        [], // Empty row
+        ['Seriales'],
+        ...serials
+    ];
+
+    const ws = xlsx.utils.aoa_to_sheet(dataForSheet);
+    
+    // Auto-fit columns
+    const colWidths = dataForSheet.reduce((acc: {wch: number}[], r) => {
+        r.forEach((c, i) => {
+            const len = c?.toString().length ?? 0;
+            if (!acc[i] || acc[i].wch < len) {
+                acc[i] = { wch: len + 2 }; // Add a little padding
+            }
+        });
+        return acc;
+    }, []);
+
+    ws['!cols'] = colWidths;
+
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, ws, 'Seriales');
+
+    const fileName = `serials_${jobNumber}.xlsx`;
+    xlsx.writeFile(wb, fileName);
+    return true;
+}

@@ -2,6 +2,7 @@
 
 import * as React from 'react';
 import {
+  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -10,17 +11,21 @@ import {
 } from "@/components/ui/table"
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Download, TableIcon } from 'lucide-react';
-import { downloadDataAsXLSX } from '@/lib/xlsx-utils';
-import { ScrollArea } from './ui/scroll-area';
+import { Download, Sparkles, TableIcon } from 'lucide-react';
+import { downloadDataAsXLSX, downloadSerialsAsXLSX } from '@/lib/xlsx-utils';
+import { ScrollArea, ScrollBar } from './ui/scroll-area';
+import { RadioGroup, RadioGroupItem } from './ui/radio-group';
+import { useToast } from '@/hooks/use-toast';
 
 interface DataTableProps {
   data: any[] | null;
-  headers: string[]; // This has the master order
+  headers: string[];
   visibleColumns: string[];
 }
 
 export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
+  const [selectedRowIndex, setSelectedRowIndex] = React.useState<string | null>(null);
+  const { toast } = useToast();
     
   // Ensure the columns in the table and download are in the correct order.
   const orderedVisibleColumns = headers.filter(h => visibleColumns.includes(h));
@@ -40,6 +45,30 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
     }
   }
   
+  const handleGenerateSerials = () => {
+    if (selectedRowIndex === null || !data) {
+        toast({
+            variant: "destructive",
+            title: "No row selected",
+            description: "Please select a row to generate serials.",
+        });
+        return;
+    }
+    const selectedRow = data[parseInt(selectedRowIndex, 10)];
+    
+    const success = downloadSerialsAsXLSX(selectedRow);
+
+    if (!success) {
+        toast({
+            variant: "destructive",
+            title: "Invalid Data",
+            description: "The selected row is missing a valid 'Job Number', 'Schedule Date', or 'Qty Ordered'.",
+        });
+    }
+  }
+
+  const selectedRow = selectedRowIndex !== null && data ? data[parseInt(selectedRowIndex, 10)] : null;
+  
   return (
      <Card className="h-full">
         <CardHeader>
@@ -48,7 +77,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                 Filtered Data
             </CardTitle>
             <CardDescription>
-                The data below is filtered based on your configuration.
+                The data below is filtered based on your configuration. Select a row to generate serials.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -62,38 +91,51 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                         <p className="text-sm text-muted-foreground">
                             {data.length} row{data.length === 1 ? '' : 's'} found.
                         </p>
-                        <Button onClick={handleDownload} disabled={data.length === 0 || orderedVisibleColumns.length === 0}>
-                            <Download className="mr-2 h-4 w-4" />
-                            Download
-                        </Button>
+                        <div className="flex items-center gap-2">
+                             <Button onClick={handleGenerateSerials} disabled={!selectedRow}>
+                                <Sparkles className="mr-2 h-4 w-4" />
+                                Generate Serials
+                            </Button>
+                            <Button onClick={handleDownload} disabled={data.length === 0 || orderedVisibleColumns.length === 0}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                            </Button>
+                        </div>
                     </div>
                      <ScrollArea className="h-[60vh] rounded-md border relative">
-                        <table className="w-full caption-bottom text-sm">
-                            <TableHeader className="sticky top-0 bg-background z-10">
-                            <TableRow>
-                                {orderedVisibleColumns.map((header) => (
-                                <TableHead key={header}>{header}</TableHead>
-                                ))}
-                            </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                            {data.length > 0 ? data.map((row, rowIndex) => (
-                                <TableRow key={rowIndex}>
-                                {orderedVisibleColumns.map((header) => (
-                                    <TableCell key={header}>
-                                        {row[header] instanceof Date ? row[header].toLocaleDateString() : (row[header]?.toString() ?? '')}
-                                    </TableCell>
-                                ))}
-                                </TableRow>
-                            )) : (
+                        <RadioGroup value={selectedRowIndex ?? ''} onValueChange={setSelectedRowIndex} className="w-full">
+                            <table className="w-full caption-bottom text-sm">
+                                <TableHeader className="sticky top-0 bg-background z-10">
                                 <TableRow>
-                                    <TableCell colSpan={orderedVisibleColumns.length} className="h-24 text-center">
-                                        No results.
-                                    </TableCell>
+                                    <TableHead className="w-12 px-4"></TableHead>
+                                    {orderedVisibleColumns.map((header) => (
+                                    <TableHead key={header}>{header}</TableHead>
+                                    ))}
                                 </TableRow>
-                            )}
-                            </TableBody>
-                        </table>
+                                </TableHeader>
+                                <TableBody>
+                                {data.length > 0 ? data.map((row, rowIndex) => (
+                                    <TableRow key={rowIndex} data-state={selectedRowIndex === rowIndex.toString() ? 'selected' : ''}>
+                                        <TableCell className="px-4">
+                                            <RadioGroupItem value={rowIndex.toString()} id={`r${rowIndex}`} />
+                                        </TableCell>
+                                        {orderedVisibleColumns.map((header) => (
+                                            <TableCell key={header}>
+                                                {row[header] instanceof Date ? row[header].toLocaleDateString() : (row[header]?.toString() ?? '')}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                )) : (
+                                    <TableRow>
+                                        <TableCell colSpan={orderedVisibleColumns.length + 1} className="h-24 text-center">
+                                            No results.
+                                        </TableCell>
+                                    </TableRow>
+                                )}
+                                </TableBody>
+                            </table>
+                        </RadioGroup>
+                        <ScrollBar orientation="horizontal" />
                     </ScrollArea>
                 </div>
             )}
