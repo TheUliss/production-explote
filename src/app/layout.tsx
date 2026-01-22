@@ -3,8 +3,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 
 export const metadata: Metadata = {
-  title: 'Excel Insights Extractor',
-  description: 'Upload an Excel file and generate an AI-powered summary.',
+  title: 'Production Extractor',
+  description: 'Upload an Excel file to filter and generate production reports.',
 };
 
 export default function RootLayout({

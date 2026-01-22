@@ -9,7 +9,7 @@ import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
-import { Columns, Filter, MinusCircle, PlusCircle, X } from 'lucide-react';
+import { Columns, Filter, MinusCircle, PlusCircle, Upload } from 'lucide-react';
 import * as React from 'react';
 
 interface ConfigPanelProps {
@@ -71,8 +71,9 @@ export function ConfigPanel({
           <CardTitle className="text-xl">Configuration</CardTitle>
           <CardDescription className="truncate" title={fileName}>{fileName}</CardDescription>
         </div>
-        <Button variant="ghost" size="icon" className="h-8 w-8 -mt-2 -mr-2" onClick={onClear}>
-            <X className="h-4 w-4" />
+        <Button variant="outline" size="sm" onClick={onClear}>
+            <Upload className="mr-2 h-4 w-4" />
+            New File
         </Button>
       </CardHeader>
       <CardContent className="space-y-6">
