@@ -24,9 +24,10 @@ interface DataTableProps {
   headers: string[];
   visibleColumns: string[];
   originalData: any[] | null;
+  dataForSummaries: any[] | null;
 }
 
-export function DataTable({ data, headers, visibleColumns, originalData }: DataTableProps) {
+export function DataTable({ data, headers, visibleColumns, originalData, dataForSummaries }: DataTableProps) {
   const [selectedRows, setSelectedRows] = React.useState<number[]>([]);
   const { toast } = useToast();
     
@@ -53,7 +54,7 @@ export function DataTable({ data, headers, visibleColumns, originalData }: DataT
   };
   
   const handleDownloadReport = () => {
-    if (!data || !originalData || orderedVisibleColumns.length === 0) return;
+    if (!data || !dataForSummaries || orderedVisibleColumns.length === 0) return;
 
     const summaryData = data.map(row => {
         let projectedRow: any = {};
@@ -68,7 +69,7 @@ export function DataTable({ data, headers, visibleColumns, originalData }: DataT
         summaryHeaders: orderedVisibleColumns,
         selectedRowIndices: selectedRows,
         allFilteredData: data,
-        originalData: originalData,
+        originalData: dataForSummaries,
         includeSummary: true,
     });
 

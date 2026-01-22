@@ -23,6 +23,7 @@ export default function ExcelInsightsPage() {
   const [headers, setHeaders] = React.useState<string[]>([]);
   const [fileKey, setFileKey] = React.useState(0);
   const [filteredData, setFilteredData] = React.useState<any[] | null>(null);
+  const [dataForSummaries, setDataForSummaries] = React.useState<any[] | null>(null);
 
   // Persistent State
   const [selectedColumns, setSelectedColumns] = useLocalStorage<string[]>('excel-insights-selectedColumns', []);
@@ -38,6 +39,7 @@ export default function ExcelInsightsPage() {
     setFileData(null);
     setHeaders([]);
     setFilteredData(null);
+    setDataForSummaries(null);
     setFileKey(prev => prev + 1);
   };
 
@@ -133,10 +135,11 @@ export default function ExcelInsightsPage() {
   React.useEffect(() => {
     if (!fileData) {
       setFilteredData(null);
+      setDataForSummaries(null);
       return;
     }
 
-    let data = [...fileData];
+    let dataAfterConstantFilters = [...fileData];
 
     // Constant filters
     const constantFilterObject = constantFilters.reduce((acc, filter) => {
@@ -158,18 +161,21 @@ export default function ExcelInsightsPage() {
                 .filter(Boolean);
 
             if (filterValues.length > 0) {
-                data = data.filter(row => {
+                dataAfterConstantFilters = dataAfterConstantFilters.filter(row => {
                     const rowValue = row[column]?.toString().toLowerCase() || '';
                     return filterValues.includes(rowValue);
                 });
             }
         }
     }
+    setDataForSummaries(dataAfterConstantFilters);
 
+
+    let dataAfterDateFilters = [...dataAfterConstantFilters];
     // Date filters
     if (dateFilter && dateFilter !== 'all' && dateColumn) {
         const today = startOfToday();
-        data = data.filter(row => {
+        dataAfterDateFilters = dataAfterDateFilters.filter(row => {
             const itemDate = row[dateColumn];
             if (!(itemDate instanceof Date) || !isValid(itemDate)) {
                 return false;
@@ -191,7 +197,7 @@ export default function ExcelInsightsPage() {
         });
     }
 
-    setFilteredData(data);
+    setFilteredData(dataAfterDateFilters);
   }, [fileData, dateFilter, dateColumn, constantFilters]);
 
 
@@ -219,7 +225,7 @@ export default function ExcelInsightsPage() {
               />
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
-              <DataTable data={filteredData} headers={headers} visibleColumns={selectedColumns} originalData={fileData} />
+              <DataTable data={filteredData} headers={headers} visibleColumns={selectedColumns} originalData={fileData} dataForSummaries={dataForSummaries} />
             </div>
           </div>
         )}
