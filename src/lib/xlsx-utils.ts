@@ -2,23 +2,6 @@
 
 import * as xlsx from 'xlsx';
 
-export function downloadDataAsXLSX(data: any[], headers: string[]) {
-  // Create worksheet from json
-  const ws = xlsx.utils.json_to_sheet(data, { header: headers });
-
-  // Create a new workbook
-  const wb = xlsx.utils.book_new();
-
-  // Add the worksheet to the workbook
-  xlsx.utils.book_append_sheet(wb, ws, "Filtered Data");
-
-  // Generate a file name
-  const fileName = `excel_filtered_data_${new Date().toISOString().split('T')[0]}.xlsx`;
-
-  // Write the workbook and trigger a download
-  xlsx.writeFile(wb, fileName);
-}
-
 function sanitizeSheetName(name: string, existingNames: Set<string>): string {
   // Sheet names cannot be longer than 31 chars and cannot contain: \ / ? * [ ]
   let sanitized = name.replace(/[\\/?*[\]]/g, "_");
@@ -40,14 +23,34 @@ function sanitizeSheetName(name: string, existingNames: Set<string>): string {
   return finalName;
 }
 
+interface DownloadReportParams {
+  summaryData: any[];
+  summaryHeaders: string[];
+  selectedRowIndices: number[];
+  allFilteredData: any[];
+}
 
-export function downloadSerialsAsXLSX(rows: any[]): { success: boolean, failedJobs: string[] } {
-    const wb = xlsx.utils.book_new();
-    const failedJobs: string[] = [];
-    const sheetNames = new Set<string>();
-    let successfulSheets = 0;
+export function downloadReport({
+  summaryData,
+  summaryHeaders,
+  selectedRowIndices,
+  allFilteredData,
+}: DownloadReportParams): { failedJobs: string[] } {
+  const wb = xlsx.utils.book_new();
+  const failedJobs: string[] = [];
+  const sheetNames = new Set<string>();
 
-    rows.forEach((row, index) => {
+  // 1. Add summary sheet (Filtered Data)
+  const summaryWs = xlsx.utils.json_to_sheet(summaryData, { header: summaryHeaders });
+  const summarySheetName = "Filtered Data";
+  xlsx.utils.book_append_sheet(wb, summaryWs, summarySheetName);
+  sheetNames.add(summarySheetName);
+
+  // 2. Add serials sheets if rows are selected
+  if (selectedRowIndices.length > 0) {
+    const rowsToProcess = selectedRowIndices.map(index => allFilteredData[index]);
+    
+    rowsToProcess.forEach((row, index) => {
         const jobNumber = row['Job Number']?.toString() || `UNKNOWN_JOB_${index}`;
         const scheduleDate = row['Schedule Date'];
         const qtyOrdered = parseInt(row['Qty Ordered'], 10);
@@ -93,13 +96,12 @@ export function downloadSerialsAsXLSX(rows: any[]): { success: boolean, failedJo
         sheetNames.add(uniqueSheetName);
         
         xlsx.utils.book_append_sheet(wb, ws, uniqueSheetName);
-        successfulSheets++;
     });
+  }
 
-    if (successfulSheets > 0) {
-        const fileName = `serials_report_${new Date().toISOString().split('T')[0]}.xlsx`;
-        xlsx.writeFile(wb, fileName);
-    }
-    
-    return { success: successfulSheets > 0, failedJobs };
+  // 3. Download the workbook
+  const fileName = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
+  xlsx.writeFile(wb, fileName);
+  
+  return { failedJobs };
 }

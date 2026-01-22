@@ -11,11 +11,13 @@ import {
 } from "@/components/ui/table"
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Download, Sparkles, TableIcon } from 'lucide-react';
-import { downloadDataAsXLSX, downloadSerialsAsXLSX } from '@/lib/xlsx-utils';
+import { Download, TableIcon } from 'lucide-react';
+import { downloadReport } from '@/lib/xlsx-utils';
 import { ScrollArea, ScrollBar } from './ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from './ui/checkbox';
+import { cn } from '@/lib/utils';
+import { startOfToday } from 'date-fns';
 
 interface DataTableProps {
   data: any[] | null;
@@ -27,11 +29,9 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
   const [selectedRows, setSelectedRows] = React.useState<number[]>([]);
   const { toast } = useToast();
     
-  // Ensure the columns in the table and download are in the correct order.
   const orderedVisibleColumns = headers.filter(h => visibleColumns.includes(h));
   
   React.useEffect(() => {
-    // Clear selection when data changes
     setSelectedRows([]);
   }, [data]);
 
@@ -52,52 +52,51 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
   };
 
   const handleDownload = () => {
-    if (data && orderedVisibleColumns.length > 0) {
-      // The data is already filtered, we just need to pick the visible columns
-      const dataToDownload = data.map(row => {
-        let projectedRow: any = {};
-        orderedVisibleColumns.forEach(col => {
-          projectedRow[col] = row[col];
-        });
-        return projectedRow;
-      });
-      // The second argument to downloadDataAsXLSX sets the header order.
-      downloadDataAsXLSX(dataToDownload, orderedVisibleColumns);
-    }
-  }
-  
-  const handleGenerateSerials = () => {
-    if (selectedRows.length === 0 || !data) {
-        toast({
-            variant: "destructive",
-            title: "No rows selected",
-            description: "Please select one or more rows to generate serials.",
-        });
+    if (!data || orderedVisibleColumns.length === 0) {
         return;
     }
-    const rowsToProcess = selectedRows.map(index => data[index]);
-    
-    const { success, failedJobs } = downloadSerialsAsXLSX(rowsToProcess);
+
+    const summaryData = data.map(row => {
+        let projectedRow: any = {};
+        orderedVisibleColumns.forEach(col => {
+            projectedRow[col] = row[col];
+        });
+        return projectedRow;
+    });
+
+    const { failedJobs } = downloadReport({
+        summaryData: summaryData,
+        summaryHeaders: orderedVisibleColumns,
+        selectedRowIndices: selectedRows,
+        allFilteredData: data,
+    });
 
     if (failedJobs.length > 0) {
-      if (failedJobs.length === rowsToProcess.length) {
-           toast({
-              variant: "destructive",
-              title: "Generation Failed",
-              description: "Could not generate any serials. All selected rows have invalid data.",
-          });
-      } else {
-          toast({
-              variant: "destructive",
-              title: "Partial Failure",
-              description: `Could not generate serials for some jobs due to invalid data: ${failedJobs.join(', ')}.`,
-          });
-      }
+        const totalSelected = selectedRows.length;
+        if (failedJobs.length === totalSelected) {
+            toast({
+                variant: "destructive",
+                title: "Serial Generation Failed",
+                description: "Could not generate serials. All selected rows have invalid data.",
+            });
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Partial Serial Generation Failure",
+                description: `Could not generate serials for some jobs due to invalid data: ${failedJobs.join(', ')}. The report has been downloaded.`,
+            });
+        }
+    } else if (selectedRows.length > 0) {
+        toast({
+            title: "Report Downloaded",
+            description: "The summary and selected serials have been downloaded.",
+        });
     }
   }
   
   const allSelected = data && selectedRows.length === data.length && data.length > 0;
   const someSelected = data && selectedRows.length > 0 && !allSelected;
+  const today = startOfToday();
 
   return (
      <Card className="h-full">
@@ -107,7 +106,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                 Filtered Data
             </CardTitle>
             <CardDescription>
-                The data below is filtered based on your configuration. Select rows to generate serials.
+                The data below is filtered based on your configuration. Select rows to generate and download serials. Overdue items are highlighted.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -122,13 +121,9 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                             {data.length} row{data.length === 1 ? '' : 's'} found. {selectedRows.length > 0 && `(${selectedRows.length} selected)`}
                         </p>
                         <div className="flex items-center gap-2">
-                             <Button onClick={handleGenerateSerials} disabled={selectedRows.length === 0}>
-                                <Sparkles className="mr-2 h-4 w-4" />
-                                Generate Serials
-                            </Button>
-                            <Button onClick={handleDownload} disabled={data.length === 0 || orderedVisibleColumns.length === 0}>
+                             <Button onClick={handleDownload} disabled={data.length === 0 || orderedVisibleColumns.length === 0}>
                                 <Download className="mr-2 h-4 w-4" />
-                                Download
+                                {selectedRows.length > 0 ? `Download Report (${selectedRows.length} serials)` : 'Download Summary'}
                             </Button>
                         </div>
                     </div>
@@ -150,8 +145,11 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                             </TableRow>
                             </TableHeader>
                             <TableBody>
-                            {data.length > 0 ? data.map((row, rowIndex) => (
-                                <TableRow key={rowIndex} data-state={selectedRows.includes(rowIndex) ? 'selected' : ''}>
+                            {data.length > 0 ? data.map((row, rowIndex) => {
+                                const scheduleDate = row['Schedule Date'];
+                                const isOverdue = scheduleDate instanceof Date && scheduleDate < today;
+                                return (
+                                <TableRow key={rowIndex} data-state={selectedRows.includes(rowIndex) ? 'selected' : ''} className={cn(isOverdue && "bg-destructive/20 hover:bg-destructive/30 data-[state=selected]:bg-destructive/40")}>
                                     <TableCell className="px-4">
                                         <Checkbox
                                           checked={selectedRows.includes(rowIndex)}
@@ -165,7 +163,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                                         </TableCell>
                                     ))}
                                 </TableRow>
-                            )) : (
+                            )}) : (
                                 <TableRow>
                                     <TableCell colSpan={orderedVisibleColumns.length + 1} className="h-24 text-center">
                                         No results.
