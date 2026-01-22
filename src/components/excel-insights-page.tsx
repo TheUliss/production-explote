@@ -219,7 +219,7 @@ export default function ExcelInsightsPage() {
               />
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
-              <DataTable data={filteredData} headers={headers} visibleColumns={selectedColumns} />
+              <DataTable data={filteredData} headers={headers} visibleColumns={selectedColumns} originalData={fileData} />
             </div>
           </div>
         )}

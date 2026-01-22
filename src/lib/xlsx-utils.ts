@@ -1,6 +1,7 @@
 'use client';
 
 import * as xlsx from 'xlsx';
+import { addDays, startOfToday } from 'date-fns';
 
 function sanitizeSheetName(name: string, existingNames: Set<string>): string {
   // Sheet names cannot be longer than 31 chars and cannot contain: \ / ? * [ ]
@@ -28,6 +29,7 @@ interface DownloadReportParams {
   summaryHeaders: string[];
   selectedRowIndices: number[];
   allFilteredData: any[];
+  originalData: any[];
   includeSummary?: boolean;
 }
 
@@ -36,6 +38,7 @@ export function downloadReport({
   summaryHeaders,
   selectedRowIndices,
   allFilteredData,
+  originalData,
   includeSummary = true,
 }: DownloadReportParams): { failedJobs: string[] } {
   const wb = xlsx.utils.book_new();
@@ -43,14 +46,92 @@ export function downloadReport({
   const sheetNames = new Set<string>();
 
   // 1. Add summary sheet (Filtered Data)
-  if (includeSummary) {
+  if (includeSummary && summaryData.length > 0) {
     const summaryWs = xlsx.utils.json_to_sheet(summaryData, { header: summaryHeaders });
     const summarySheetName = "Filtered Data";
     xlsx.utils.book_append_sheet(wb, summaryWs, summarySheetName);
     sheetNames.add(summarySheetName);
   }
 
-  // 2. Add serials sheets if rows are selected
+  // 2. Add extra summary sheets based on the original data
+  if (includeSummary && originalData) {
+    const today = startOfToday();
+    const sevenDaysFromNow = addDays(today, 7);
+
+    // Summary 1: Upcoming Jobs (Next 7 Days)
+    const upcomingJobs = originalData
+        .filter(row => {
+            const scheduleDate = row['Schedule Date'];
+            return scheduleDate instanceof Date && scheduleDate >= today && scheduleDate <= sevenDaysFromNow;
+        })
+        .sort((a, b) => a['Schedule Date'].getTime() - b['Schedule Date'].getTime());
+
+    if (upcomingJobs.length > 0) {
+        const ws = xlsx.utils.json_to_sheet(upcomingJobs);
+        const sheetName = sanitizeSheetName('Upcoming Jobs (7 Days)', sheetNames);
+        xlsx.utils.book_append_sheet(wb, ws, sheetName);
+        sheetNames.add(sheetName);
+    }
+
+    // Summary 2: Overdue Jobs
+    const overdueJobs = originalData
+        .filter(row => {
+            const scheduleDate = row['Schedule Date'];
+            return scheduleDate instanceof Date && scheduleDate < today;
+        })
+        .sort((a, b) => a['Schedule Date'].getTime() - b['Schedule Date'].getTime());
+    
+    if (overdueJobs.length > 0) {
+        const ws = xlsx.utils.json_to_sheet(overdueJobs);
+        const sheetName = sanitizeSheetName('Overdue Jobs', sheetNames);
+        xlsx.utils.book_append_sheet(wb, ws, sheetName);
+        sheetNames.add(sheetName);
+    }
+    
+    // Summary 3: Group & Customer Summary
+    const groupSummary = originalData.reduce((acc, row) => {
+        const group = row['Schedule Group']?.toString() || 'N/A';
+        const customer = row['Customer']?.toString() || 'N/A';
+        const key = `${group}|${customer}`;
+
+        if (!acc[key]) {
+            acc[key] = {
+                'Schedule Group': group,
+                'Customer': customer,
+                'Total Jobs': 0,
+                'Total Qty Ordered': 0,
+                'Overdue Jobs': 0,
+                'Jobs Due (Next 7 Days)': 0,
+            };
+        }
+
+        acc[key]['Total Jobs'] += 1;
+        acc[key]['Total Qty Ordered'] += parseInt(row['Qty Ordered'], 10) || 0;
+
+        const scheduleDate = row['Schedule Date'];
+        if (scheduleDate instanceof Date) {
+            if (scheduleDate < today) {
+                acc[key]['Overdue Jobs'] += 1;
+            }
+            if (scheduleDate >= today && scheduleDate <= sevenDaysFromNow) {
+                acc[key]['Jobs Due (Next 7 Days)'] += 1;
+            }
+        }
+        
+        return acc;
+    }, {} as Record<string, any>);
+
+    const groupSummaryArray = Object.values(groupSummary);
+    if (groupSummaryArray.length > 0) {
+        const ws = xlsx.utils.json_to_sheet(groupSummaryArray);
+        const sheetName = sanitizeSheetName('Group & Customer Summary', sheetNames);
+        xlsx.utils.book_append_sheet(wb, ws, sheetName);
+        sheetNames.add(sheetName);
+    }
+  }
+
+
+  // 3. Add serials sheets if rows are selected
   if (selectedRowIndices.length > 0) {
     const rowsToProcess = selectedRowIndices.map(index => allFilteredData[index]);
     
@@ -103,9 +184,11 @@ export function downloadReport({
     });
   }
 
-  // 3. Download the workbook
-  const fileName = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
-  xlsx.writeFile(wb, fileName);
+  // 4. Download the workbook if it has any sheets
+  if (wb.SheetNames.length > 0) {
+    const fileName = `report_${new Date().toISOString().split('T')[0]}.xlsx`;
+    xlsx.writeFile(wb, fileName);
+  }
   
   return { failedJobs };
 }

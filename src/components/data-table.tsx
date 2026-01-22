@@ -23,9 +23,10 @@ interface DataTableProps {
   data: any[] | null;
   headers: string[];
   visibleColumns: string[];
+  originalData: any[] | null;
 }
 
-export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
+export function DataTable({ data, headers, visibleColumns, originalData }: DataTableProps) {
   const [selectedRows, setSelectedRows] = React.useState<number[]>([]);
   const { toast } = useToast();
     
@@ -52,7 +53,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
   };
   
   const handleDownloadReport = () => {
-    if (!data || orderedVisibleColumns.length === 0) return;
+    if (!data || !originalData || orderedVisibleColumns.length === 0) return;
 
     const summaryData = data.map(row => {
         let projectedRow: any = {};
@@ -67,6 +68,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
         summaryHeaders: orderedVisibleColumns,
         selectedRowIndices: selectedRows,
         allFilteredData: data,
+        originalData: originalData,
         includeSummary: true,
     });
 
@@ -102,13 +104,14 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
   }
 
   const handleDownloadSerials = () => {
-    if (!data || selectedRows.length === 0) return;
+    if (!data || !originalData || selectedRows.length === 0) return;
 
      const { failedJobs } = downloadReport({
         summaryData: [],
         summaryHeaders: [],
         selectedRowIndices: selectedRows,
         allFilteredData: data,
+        originalData: originalData,
         includeSummary: false,
     });
 
