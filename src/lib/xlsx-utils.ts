@@ -28,6 +28,7 @@ interface DownloadReportParams {
   summaryHeaders: string[];
   selectedRowIndices: number[];
   allFilteredData: any[];
+  includeSummary?: boolean;
 }
 
 export function downloadReport({
@@ -35,16 +36,19 @@ export function downloadReport({
   summaryHeaders,
   selectedRowIndices,
   allFilteredData,
+  includeSummary = true,
 }: DownloadReportParams): { failedJobs: string[] } {
   const wb = xlsx.utils.book_new();
   const failedJobs: string[] = [];
   const sheetNames = new Set<string>();
 
   // 1. Add summary sheet (Filtered Data)
-  const summaryWs = xlsx.utils.json_to_sheet(summaryData, { header: summaryHeaders });
-  const summarySheetName = "Filtered Data";
-  xlsx.utils.book_append_sheet(wb, summaryWs, summarySheetName);
-  sheetNames.add(summarySheetName);
+  if (includeSummary) {
+    const summaryWs = xlsx.utils.json_to_sheet(summaryData, { header: summaryHeaders });
+    const summarySheetName = "Filtered Data";
+    xlsx.utils.book_append_sheet(wb, summaryWs, summarySheetName);
+    sheetNames.add(summarySheetName);
+  }
 
   // 2. Add serials sheets if rows are selected
   if (selectedRowIndices.length > 0) {

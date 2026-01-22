@@ -17,7 +17,7 @@ import { ScrollArea, ScrollBar } from './ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from './ui/checkbox';
 import { cn } from '@/lib/utils';
-import { startOfToday } from 'date-fns';
+import { addDays, startOfToday } from 'date-fns';
 
 interface DataTableProps {
   data: any[] | null;
@@ -50,11 +50,9 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
         : [...prev, rowIndex]
     );
   };
-
-  const handleDownload = () => {
-    if (!data || orderedVisibleColumns.length === 0) {
-        return;
-    }
+  
+  const handleDownloadReport = () => {
+    if (!data || orderedVisibleColumns.length === 0) return;
 
     const summaryData = data.map(row => {
         let projectedRow: any = {};
@@ -69,6 +67,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
         summaryHeaders: orderedVisibleColumns,
         selectedRowIndices: selectedRows,
         allFilteredData: data,
+        includeSummary: true,
     });
 
     if (selectedRows.length === 0) {
@@ -101,10 +100,47 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
         });
     }
   }
+
+  const handleDownloadSerials = () => {
+    if (!data || selectedRows.length === 0) return;
+
+     const { failedJobs } = downloadReport({
+        summaryData: [],
+        summaryHeaders: [],
+        selectedRowIndices: selectedRows,
+        allFilteredData: data,
+        includeSummary: false,
+    });
+
+    if (failedJobs.length > 0) {
+        const totalSelected = selectedRows.length;
+        if (failedJobs.length === totalSelected) {
+            toast({
+                variant: "destructive",
+                title: "Serial Generation Failed",
+                description: "Could not generate serials for any selected rows.",
+            });
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Partial Serial Generation Failure",
+                description: `Serials generation failed for: ${failedJobs.join(', ')}. The rest were downloaded.`,
+            });
+        }
+    } else {
+        toast({
+            title: "Serials Downloaded",
+            description: "The serials for all selected jobs have been downloaded successfully.",
+        });
+    }
+  }
   
   const allSelected = data && selectedRows.length === data.length && data.length > 0;
   const someSelected = data && selectedRows.length > 0 && !allSelected;
+  
   const today = startOfToday();
+  const threeDays = addDays(today, 3);
+  const sevenDays = addDays(today, 7);
 
   return (
      <Card className="h-full">
@@ -114,7 +150,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                 Filtered Data
             </CardTitle>
             <CardDescription>
-                The data below is filtered based on your configuration. Select rows to generate and download serials. Overdue items are highlighted.
+                The data below is filtered based on your configuration. Select rows to generate and download serials. Rows are color-coded by due date.
             </CardDescription>
         </CardHeader>
         <CardContent>
@@ -129,9 +165,13 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                             {data.length} row{data.length === 1 ? '' : 's'} found. {selectedRows.length > 0 && `(${selectedRows.length} selected)`}
                         </p>
                         <div className="flex items-center gap-2">
-                             <Button onClick={handleDownload} disabled={data.length === 0 || orderedVisibleColumns.length === 0}>
+                             <Button onClick={handleDownloadReport} disabled={data.length === 0 || orderedVisibleColumns.length === 0}>
                                 <Download className="mr-2 h-4 w-4" />
-                                {selectedRows.length > 0 ? `Download Report (${selectedRows.length} serials)` : 'Download Summary'}
+                                Download Report
+                            </Button>
+                             <Button onClick={handleDownloadSerials} variant="secondary" disabled={selectedRows.length === 0}>
+                                <Download className="mr-2 h-4 w-4" />
+                                Download Serials
                             </Button>
                         </div>
                     </div>
@@ -155,9 +195,21 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                             <TableBody>
                             {data.length > 0 ? data.map((row, rowIndex) => {
                                 const scheduleDate = row['Schedule Date'];
+                                
                                 const isOverdue = scheduleDate instanceof Date && scheduleDate < today;
+                                const isDueSoon3 = scheduleDate instanceof Date && !isOverdue && scheduleDate <= threeDays;
+                                const isDueSoon7 = scheduleDate instanceof Date && !isOverdue && !isDueSoon3 && scheduleDate <= sevenDays;
+
                                 return (
-                                <TableRow key={rowIndex} data-state={selectedRows.includes(rowIndex) ? 'selected' : ''} className={cn(isOverdue && "bg-destructive/20 hover:bg-destructive/30 data-[state=selected]:bg-destructive/40")}>
+                                <TableRow 
+                                    key={rowIndex} 
+                                    data-state={selectedRows.includes(rowIndex) ? 'selected' : ''} 
+                                    className={cn(
+                                        isOverdue && "bg-destructive/20 hover:bg-destructive/30 data-[state=selected]:bg-destructive/40",
+                                        isDueSoon3 && "bg-yellow-400/20 hover:bg-yellow-400/30 data-[state=selected]:bg-yellow-400/40",
+                                        isDueSoon7 && "bg-orange-400/20 hover:bg-orange-400/30 data-[state=selected]:bg-orange-400/40"
+                                    )}
+                                >
                                     <TableCell className="px-4">
                                         <Checkbox
                                           checked={selectedRows.includes(rowIndex)}
