@@ -6,10 +6,8 @@ import { z } from 'zod';
 const inputSchema = z.object({
   excelData: z.string(),
   selectedColumns: z.array(z.string()),
-  dateRange: z.object({
-    startDate: z.string().optional(),
-    endDate: z.string().optional(),
-  }).optional(),
+  dateFilter: z.string().optional(),
+  dateColumn: z.string().optional(),
   constantFilters: z.record(z.string(), z.string()).optional(),
 });
 

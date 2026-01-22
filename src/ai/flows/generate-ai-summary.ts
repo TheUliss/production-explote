@@ -10,6 +10,8 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import * as xlsx from 'xlsx';
+import { addDays, endOfMonth, startOfMonth, startOfToday, isValid } from 'date-fns';
 
 const GenerateAISummaryInputSchema = z.object({
   excelData: z
@@ -20,13 +22,8 @@ const GenerateAISummaryInputSchema = z.object({
   selectedColumns: z
     .array(z.string())
     .describe('Array of column names to include in the summary.'),
-  dateRange: z
-    .object({
-      startDate: z.string().optional().describe('Start date for filtering (ISO format).'),
-      endDate: z.string().optional().describe('End date for filtering (ISO format).'),
-    })
-    .optional()
-    .describe('Date range for filtering.'),
+  dateFilter: z.string().optional().describe("Filter for dates: 'all', 'overdue', 'due-soon-7', 'current-month'."),
+  dateColumn: z.string().optional().describe("The column that contains dates for filtering."),
   constantFilters: z
     .record(z.string(), z.string())
     .optional()
@@ -43,14 +40,105 @@ export type GenerateAISummaryOutput = z.infer<typeof GenerateAISummaryOutputSche
 
 const excelDataTool = ai.defineTool({
   name: 'getExcelDataSummary',
-  description: 'This tool analyzes excel data, filters it based on column selection, date ranges, and constant value, and returns a concise summary of the data.',
+  description: 'This tool analyzes excel data, filters it based on column selection, date filters, and constant values, and returns the processed data as a markdown table for summarization.',
   inputSchema: GenerateAISummaryInputSchema,
   outputSchema: z.string(),
 },
 async (input) => {
-  // TODO: Implement excel data parsing and filtering here.
-  // For now, return a placeholder string
-  return `AI summary of excel data based on user-defined filters.`
+  const { excelData, selectedColumns, dateFilter, dateColumn, constantFilters } = input;
+
+  const buffer = Buffer.from(excelData, 'base64');
+  const workbook = xlsx.read(buffer, { type: 'buffer', cellDates: true });
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  let jsonData: any[] = xlsx.utils.sheet_to_json(worksheet);
+
+  if (jsonData.length === 0) {
+    return 'The Excel file has no data.';
+  }
+
+  // Apply constant filters
+  if (constantFilters) {
+    for (const column in constantFilters) {
+      if (Object.prototype.hasOwnProperty.call(constantFilters, column) && constantFilters[column]) {
+        const filterValues = constantFilters[column].split(',').map(v => v.trim().toLowerCase());
+        if (filterValues.length > 0) {
+          jsonData = jsonData.filter(row => {
+            const rowValue = row[column]?.toString().toLowerCase() || '';
+            return filterValues.includes(rowValue);
+          });
+        }
+      }
+    }
+  }
+
+  // Apply date filters
+  if (dateFilter && dateFilter !== 'all' && dateColumn) {
+    const today = startOfToday();
+
+    jsonData = jsonData.filter(row => {
+      const itemDate = row[dateColumn];
+      if (!(itemDate instanceof Date) || !isValid(itemDate)) {
+        return false;
+      }
+
+      switch (dateFilter) {
+        case 'overdue':
+          return itemDate < today;
+        case 'due-soon-7':
+          const aWeekFromNow = addDays(today, 7);
+          return itemDate >= today && itemDate <= aWeekFromNow;
+        case 'current-month':
+          const monthStart = startOfMonth(today);
+          const monthEnd = endOfMonth(today);
+          return itemDate >= monthStart && itemDate <= monthEnd;
+        default:
+          return true;
+      }
+    });
+  }
+
+  // Sort data
+  if (dateColumn) {
+    jsonData.sort((a, b) => {
+      const dateA = a[dateColumn];
+      const dateB = b[dateColumn];
+      if (dateA instanceof Date && dateB instanceof Date) {
+        return dateA.getTime() - dateB.getTime();
+      }
+      return 0;
+    });
+  }
+
+  // Select columns for the final output
+  const processedData = jsonData.map(row => {
+    const newRow: Record<string, any> = {};
+    selectedColumns.forEach(col => {
+      newRow[col] = row[col];
+    });
+    return newRow;
+  });
+
+  if (processedData.length === 0) {
+    return "No data matches the specified filters.";
+  }
+  
+  // Convert to Markdown table
+  const headers = selectedColumns;
+  let markdownTable = `| ${headers.join(' | ')} |\n`;
+  markdownTable += `| ${headers.map(() => '---').join(' | ')} |\n`;
+  processedData.forEach(row => {
+    const rowValues = headers.map(header => {
+      const value = row[header];
+      if (value instanceof Date) {
+        return value.toLocaleDateString();
+      }
+      return value !== undefined && value !== null ? String(value) : '';
+    });
+    markdownTable += `| ${rowValues.join(' | ')} |\n`;
+  });
+
+  return markdownTable;
 });
 
 const generateAISummaryPrompt = ai.definePrompt({
@@ -60,11 +148,11 @@ const generateAISummaryPrompt = ai.definePrompt({
   output: {schema: GenerateAISummaryOutputSchema},
   prompt: `You are an AI assistant tasked with summarizing data from Excel files.
 
-The user will provide an Excel file, select specific columns, define filters such as date ranges and constant values.
+The user has provided an Excel file and selected columns and filters.
 
-Use the "getExcelDataSummary" tool to get the summary of the excel data with the selected columns, data range and constant filters.
+Use the "getExcelDataSummary" tool to get the processed data based on the user's configuration.
 
-Use the tool, then present the results to the user in a comprehensive manner.`,
+The tool will return a markdown table. Your task is to generate a concise, natural language summary based on that table. Highlight key insights, totals, and important trends. Do not just repeat the table data.`,
 });
 
 const generateAISummaryFlow = ai.defineFlow(

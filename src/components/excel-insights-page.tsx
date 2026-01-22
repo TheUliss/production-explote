@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import type { DateRange } from 'react-day-picker';
 import * as xlsx from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
 import { generateSummaryAction } from '@/app/actions';
@@ -20,7 +19,7 @@ export default function ExcelInsightsPage() {
   const [fileKey, setFileKey] = React.useState(0);
 
   const [selectedColumns, setSelectedColumns] = React.useState<string[]>([]);
-  const [dateRange, setDateRange] = React.useState<DateRange | undefined>();
+  const [dateFilter, setDateFilter] = React.useState<string>('all');
   const [dateColumn, setDateColumn] = React.useState<string>('');
   const [constantFilters, setConstantFilters] = React.useState<ConstantFilter[]>([]);
 
@@ -34,7 +33,7 @@ export default function ExcelInsightsPage() {
     setFileData(null);
     setHeaders([]);
     setSelectedColumns([]);
-    setDateRange(undefined);
+    setDateFilter('all');
     setDateColumn('');
     setConstantFilters([]);
     setSummary(null);
@@ -113,6 +112,10 @@ export default function ExcelInsightsPage() {
         toast({ variant: 'destructive', title: 'No columns selected', description: 'Please select at least one column to summarize.' });
         return;
     }
+    if(dateFilter !== 'all' && !dateColumn) {
+        toast({ variant: 'destructive', title: 'Date column not selected', description: 'Please select a column containing dates to apply a date filter.' });
+        return;
+    }
 
     setIsLoading(true);
     setSummary(null);
@@ -129,10 +132,8 @@ export default function ExcelInsightsPage() {
       const result = await generateSummaryAction({
         excelData: base64Data,
         selectedColumns,
-        dateRange: dateRange && dateColumn ? {
-            startDate: dateRange.from?.toISOString(),
-            endDate: dateRange.to?.toISOString()
-        } : undefined,
+        dateFilter: dateFilter,
+        dateColumn: dateColumn,
         constantFilters: constantFilterObject,
       });
 
@@ -166,8 +167,8 @@ export default function ExcelInsightsPage() {
                 headers={headers}
                 selectedColumns={selectedColumns}
                 setSelectedColumns={setSelectedColumns}
-                dateRange={dateRange}
-                setDateRange={setDateRange}
+                dateFilter={dateFilter}
+                setDateFilter={setDateFilter}
                 dateColumn={dateColumn}
                 setDateColumn={setDateColumn}
                 constantFilters={constantFilters}
