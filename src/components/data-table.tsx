@@ -2,7 +2,6 @@
 
 import * as React from 'react';
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -69,7 +68,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                         </Button>
                     </div>
                      <ScrollArea className="h-[60vh] rounded-md border relative">
-                        <Table>
+                        <table className="w-full caption-bottom text-sm">
                             <TableHeader className="sticky top-0 bg-background z-10">
                             <TableRow>
                                 {orderedVisibleColumns.map((header) => (
@@ -94,7 +93,7 @@ export function DataTable({ data, headers, visibleColumns }: DataTableProps) {
                                 </TableRow>
                             )}
                             </TableBody>
-                        </Table>
+                        </table>
                     </ScrollArea>
                 </div>
             )}
