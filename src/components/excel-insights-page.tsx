@@ -4,12 +4,13 @@ import * as React from 'react';
 import * as xlsx from 'xlsx';
 import { useToast } from '@/hooks/use-toast';
 import { useLocalStorage } from '@/hooks/use-local-storage';
-import { addDays, endOfMonth, startOfMonth, startOfToday, isValid } from 'date-fns';
+import { addDays, endOfMonth, startOfMonth, startOfToday, isValid, parseISO } from 'date-fns';
 
 import AppHeader from '@/components/app-header';
 import { FileUpload } from '@/components/file-upload';
 import { ConfigPanel } from '@/components/config-panel';
 import { DataTable } from '@/components/data-table';
+import { Loader2 } from 'lucide-react';
 
 
 export type ConstantFilter = { id: string; column: string; value: string };
@@ -17,23 +18,72 @@ export type ConstantFilter = { id: string; column: string; value: string };
 // Define the columns to always keep and their desired order.
 const REQUIRED_COLUMNS = ["Schedule Date", "Schedule Group", "Job Number", "Item Description", "Qty Ordered", "Customer"];
 
+// Helper function to serialize dates for localStorage
+const serializeData = (data: any[]) => {
+  return data.map(row => {
+    const newRow: any = {};
+    for (const key in row) {
+      if (row[key] instanceof Date) {
+        newRow[key] = { __isDate: true, value: row[key].toISOString() };
+      } else {
+        newRow[key] = row[key];
+      }
+    }
+    return newRow;
+  });
+};
+
+// Helper function to deserialize dates from localStorage
+const deserializeData = (data: any[]) => {
+  return data.map(row => {
+    const newRow: any = {};
+    for (const key in row) {
+      if (row[key] && row[key].__isDate) {
+        newRow[key] = parseISO(row[key].value);
+      } else {
+        newRow[key] = row[key];
+      }
+    }
+    return newRow;
+  });
+};
+
 export default function ExcelInsightsPage() {
   const [file, setFile] = React.useState<File | null>(null);
-  const [fileData, setFileData] = React.useState<any[] | null>(null); // This will hold the pre-filtered and sorted data.
+  const [fileData, setFileData] = React.useState<any[] | null>(null);
   const [headers, setHeaders] = React.useState<string[]>([]);
   const [fileKey, setFileKey] = React.useState(0);
   const [filteredData, setFilteredData] = React.useState<any[] | null>(null);
   const [dataForSummaries, setDataForSummaries] = React.useState<any[] | null>(null);
   const [packedSerials, setPackedSerials] = React.useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = React.useState(false);
 
   // Persistent State
   const [selectedColumns, setSelectedColumns] = useLocalStorage<string[]>('excel-insights-selectedColumns', []);
   const [dateFilter, setDateFilter] = useLocalStorage<string>('excel-insights-dateFilter', 'all');
   const [dateColumn, setDateColumn] = useLocalStorage<string>('excel-insights-dateColumn', '');
   const [constantFilters, setConstantFilters] = useLocalStorage<ConstantFilter[]>('excel-insights-constantFilters', []);
+  const [persistedFileData, setPersistedFileData] = useLocalStorage<any[] | null>('excel-insights-fileData', null);
+  const [persistedHeaders, setPersistedHeaders] = useLocalStorage<string[]>('excel-insights-headers', []);
+  const [persistedFileName, setPersistedFileName] = useLocalStorage<string>('excel-insights-fileName', '');
 
 
   const { toast } = useToast();
+
+  // Load persisted data on mount
+  React.useEffect(() => {
+    if (persistedFileData && persistedHeaders.length > 0 && !fileData) {
+      const deserializedData = deserializeData(persistedFileData);
+      setFileData(deserializedData);
+      setHeaders(persistedHeaders);
+
+      // Validate selected columns
+      const validColumns = selectedColumns.filter(col => persistedHeaders.includes(col));
+      if (validColumns.length === 0) {
+        setSelectedColumns(persistedHeaders);
+      }
+    }
+  }, []);
 
   const resetFileUpload = () => {
     setFile(null);
@@ -43,6 +93,10 @@ export default function ExcelInsightsPage() {
     setDataForSummaries(null);
     setPackedSerials(new Set());
     setFileKey(prev => prev + 1);
+    // Clear persisted data
+    setPersistedFileData(null);
+    setPersistedHeaders([]);
+    setPersistedFileName('');
   };
 
   const handleFile = (uploadedFile: File) => {
@@ -50,6 +104,7 @@ export default function ExcelInsightsPage() {
 
     resetFileUpload();
     setFile(uploadedFile);
+    setIsLoading(true);
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -59,22 +114,40 @@ export default function ExcelInsightsPage() {
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const json: any[] = xlsx.utils.sheet_to_json(worksheet);
-        
+
         if (Array.isArray(json) && json.length > 0) {
           const originalHeaders = Object.keys(json[0] as object);
 
           // 1. Determine available columns based on REQUIRED_COLUMNS and their order.
           const availableHeaders = REQUIRED_COLUMNS.filter(h => originalHeaders.includes(h));
-          
+
           if (availableHeaders.length === 0) {
-             throw new Error("None of the required columns were found in the file. Required: " + REQUIRED_COLUMNS.join(', '));
+            throw new Error(`Columnas requeridas no encontradas. El archivo debe contener: ${REQUIRED_COLUMNS.join(', ')}`);
+          }
+
+          const missingColumns = REQUIRED_COLUMNS.filter(h => !originalHeaders.includes(h));
+          if (missingColumns.length > 0) {
+            toast({
+              title: "Advertencia",
+              description: `Columnas faltantes: ${missingColumns.join(', ')}. Continuando con las disponibles.`,
+            });
           }
 
           // 2. Pre-filter and reorder columns for every row.
-          let processedData = json.map(row => {
+          let processedData = json.map((row, rowIndex) => {
             const newRow: any = {};
             availableHeaders.forEach(header => {
-              newRow[header] = row[header];
+              let value = row[header];
+
+              // Validate Schedule Date
+              if (header === "Schedule Date" && value !== undefined && value !== null) {
+                if (!(value instanceof Date) || !isValid(value)) {
+                  console.warn(`Fila ${rowIndex + 2}: Fecha inválida en Schedule Date`);
+                  value = null;
+                }
+              }
+
+              newRow[header] = value;
             });
             return newRow;
           });
@@ -82,20 +155,25 @@ export default function ExcelInsightsPage() {
           // 3. Sort data by "Schedule Date" ascending.
           if (availableHeaders.includes("Schedule Date")) {
             processedData.sort((a, b) => {
-                const dateA = a["Schedule Date"];
-                const dateB = b["Schedule Date"];
-                if (dateA instanceof Date && isValid(dateA) && dateB instanceof Date && isValid(dateB)) {
-                    return dateA.getTime() - dateB.getTime();
-                }
-                if (dateA) return -1;
-                if (dateB) return 1;
-                return 0;
+              const dateA = a["Schedule Date"];
+              const dateB = b["Schedule Date"];
+              if (dateA instanceof Date && isValid(dateA) && dateB instanceof Date && isValid(dateB)) {
+                return dateA.getTime() - dateB.getTime();
+              }
+              if (dateA) return -1;
+              if (dateB) return 1;
+              return 0;
             });
           }
 
           setHeaders(availableHeaders);
           setFileData(processedData);
-          
+
+          // Persist data
+          setPersistedFileData(serializeData(processedData));
+          setPersistedHeaders(availableHeaders);
+          setPersistedFileName(uploadedFile.name);
+
           // Validate persisted states
           const validPersistedColumns = selectedColumns.filter(col => availableHeaders.includes(col));
           if (validPersistedColumns.length > 0) {
@@ -105,91 +183,99 @@ export default function ExcelInsightsPage() {
           }
 
           if (!availableHeaders.includes(dateColumn)) {
-              setDateColumn(availableHeaders.includes("Schedule Date") ? "Schedule Date" : '');
+            setDateColumn(availableHeaders.includes("Schedule Date") ? "Schedule Date" : '');
           }
 
           setConstantFilters(prev => prev.filter(f => availableHeaders.includes(f.column) || f.column === ''));
 
+          toast({
+            title: "Archivo cargado",
+            description: `${processedData.length} registros procesados correctamente.`,
+          });
+
         } else {
-            throw new Error('No data found in the Excel sheet.');
+          throw new Error('No se encontraron datos en el archivo Excel.');
         }
       } catch (error) {
         console.error(error);
         toast({
           variant: 'destructive',
-          title: 'Error reading file',
-          description: error instanceof Error ? error.message : 'Could not process the Excel file. Please ensure it is valid.',
+          title: 'Error al leer el archivo',
+          description: error instanceof Error ? error.message : 'No se pudo procesar el archivo Excel. Verifica que sea válido.',
         });
         resetFileUpload();
+      } finally {
+        setIsLoading(false);
       }
     };
     reader.onerror = () => {
       toast({
         variant: 'destructive',
-        title: 'File Reading Error',
-        description: 'An error occurred while reading the file.',
+        title: 'Error de lectura',
+        description: 'Ocurrió un error al leer el archivo.',
       });
       resetFileUpload();
+      setIsLoading(false);
     };
     reader.readAsArrayBuffer(uploadedFile);
   };
-  
+
   const handlePackingFile = (packingFile: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
-        try {
-            const data = new Uint8Array(e.target?.result as ArrayBuffer);
-            const workbook = xlsx.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const json: any[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = xlsx.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: any[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
 
-            if (json.length < 2) { // must have header and at least one row
-                throw new Error("Packing file is empty or has no data rows.");
-            }
-
-            const headers = json[0].map(h => h?.toString().trim());
-            const serialsColIndex = headers.findIndex(h => h === 'Seriales');
-
-            if (serialsColIndex === -1) {
-                throw new Error('Could not find a "Seriales" column in the packing file.');
-            }
-
-            const loadedSerials = new Set<string>();
-            // Start from 1 to skip header row
-            for (let i = 1; i < json.length; i++) {
-                const serial = json[i][serialsColIndex]?.toString().trim();
-                if (serial) {
-                    loadedSerials.add(serial);
-                }
-            }
-
-            setPackedSerials(loadedSerials);
-
-            toast({
-                title: "Packing Data Loaded",
-                description: `${loadedSerials.size} packed serials have been successfully loaded.`,
-            });
-        } catch (error) {
-            console.error(error);
-            toast({
-                variant: 'destructive',
-                title: 'Error reading packing file',
-                description: error instanceof Error ? error.message : 'Could not process the packing data file.',
-            });
-            setPackedSerials(new Set()); // Reset on error
+        if (json.length < 2) { // must have header and at least one row
+          throw new Error("El archivo de empaque está vacío o no tiene filas de datos.");
         }
+
+        const headers = json[0].map(h => h?.toString().trim());
+        const serialsColIndex = headers.findIndex(h => h === 'Seriales');
+
+        if (serialsColIndex === -1) {
+          throw new Error('No se encontró la columna "Seriales" en el archivo de empaque.');
+        }
+
+        const loadedSerials = new Set<string>();
+        // Start from 1 to skip header row
+        for (let i = 1; i < json.length; i++) {
+          const serial = json[i][serialsColIndex]?.toString().trim();
+          if (serial) {
+            loadedSerials.add(serial);
+          }
+        }
+
+        setPackedSerials(loadedSerials);
+
+        toast({
+          title: "Datos de empaque cargados",
+          description: `${loadedSerials.size} seriales empacados han sido cargados.`,
+        });
+      } catch (error) {
+        console.error(error);
+        toast({
+          variant: 'destructive',
+          title: 'Error al leer archivo de empaque',
+          description: error instanceof Error ? error.message : 'No se pudo procesar el archivo de empaque.',
+        });
+        setPackedSerials(new Set()); // Reset on error
+      }
     };
     reader.onerror = () => {
-        toast({
-            variant: 'destructive',
-            title: 'File Reading Error',
-            description: 'An error occurred while reading the packing data file.',
-        });
-        setPackedSerials(new Set());
+      toast({
+        variant: 'destructive',
+        title: 'Error de lectura',
+        description: 'Ocurrió un error al leer el archivo de empaque.',
+      });
+      setPackedSerials(new Set());
     };
     reader.readAsArrayBuffer(packingFile);
-};
+  };
 
 
   React.useEffect(() => {
@@ -203,30 +289,30 @@ export default function ExcelInsightsPage() {
 
     // Constant filters
     const constantFilterObject = constantFilters.reduce((acc, filter) => {
-        if (filter.column && filter.value) {
-          if (acc[filter.column]) {
-            acc[filter.column] += `,${filter.value}`;
-          } else {
-            acc[filter.column] = filter.value;
-          }
+      if (filter.column && filter.value) {
+        if (acc[filter.column]) {
+          acc[filter.column] += `,${filter.value}`;
+        } else {
+          acc[filter.column] = filter.value;
         }
-        return acc;
+      }
+      return acc;
     }, {} as Record<string, string>);
 
     for (const column in constantFilterObject) {
-        if (Object.prototype.hasOwnProperty.call(constantFilterObject, column) && constantFilterObject[column]) {
-            const filterValues = constantFilterObject[column]
-                .split(',')
-                .map(v => v.trim().toLowerCase())
-                .filter(Boolean);
+      if (Object.prototype.hasOwnProperty.call(constantFilterObject, column) && constantFilterObject[column]) {
+        const filterValues = constantFilterObject[column]
+          .split(',')
+          .map(v => v.trim().toLowerCase())
+          .filter(Boolean);
 
-            if (filterValues.length > 0) {
-                dataAfterConstantFilters = dataAfterConstantFilters.filter(row => {
-                    const rowValue = row[column]?.toString().toLowerCase() || '';
-                    return filterValues.includes(rowValue);
-                });
-            }
+        if (filterValues.length > 0) {
+          dataAfterConstantFilters = dataAfterConstantFilters.filter(row => {
+            const rowValue = row[column]?.toString().toLowerCase() || '';
+            return filterValues.includes(rowValue);
+          });
         }
+      }
     }
     setDataForSummaries(dataAfterConstantFilters);
 
@@ -234,27 +320,27 @@ export default function ExcelInsightsPage() {
     let dataAfterDateFilters = [...dataAfterConstantFilters];
     // Date filters
     if (dateFilter && dateFilter !== 'all' && dateColumn) {
-        const today = startOfToday();
-        dataAfterDateFilters = dataAfterDateFilters.filter(row => {
-            const itemDate = row[dateColumn];
-            if (!(itemDate instanceof Date) || !isValid(itemDate)) {
-                return false;
-            }
+      const today = startOfToday();
+      dataAfterDateFilters = dataAfterDateFilters.filter(row => {
+        const itemDate = row[dateColumn];
+        if (!(itemDate instanceof Date) || !isValid(itemDate)) {
+          return false;
+        }
 
-            switch (dateFilter) {
-                case 'overdue':
-                    return itemDate < today;
-                case 'due-soon-7':
-                    const aWeekFromNow = addDays(today, 7);
-                    return itemDate >= today && itemDate <= aWeekFromNow;
-                case 'current-month':
-                    const monthStart = startOfMonth(today);
-                    const monthEnd = endOfMonth(today);
-                    return itemDate >= monthStart && itemDate <= monthEnd;
-                default:
-                    return true;
-            }
-        });
+        switch (dateFilter) {
+          case 'overdue':
+            return itemDate < today;
+          case 'due-soon-7':
+            const aWeekFromNow = addDays(today, 7);
+            return itemDate >= today && itemDate <= aWeekFromNow;
+          case 'current-month':
+            const monthStart = startOfMonth(today);
+            const monthEnd = endOfMonth(today);
+            return itemDate >= monthStart && itemDate <= monthEnd;
+          default:
+            return true;
+        }
+      });
     }
 
     setFilteredData(dataAfterDateFilters);
@@ -265,13 +351,18 @@ export default function ExcelInsightsPage() {
     <div className="flex flex-col min-h-screen">
       <AppHeader />
       <main className="flex-1 container mx-auto px-4 md:px-6 py-8">
-        {!fileData ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-full gap-4">
+            <Loader2 className="h-16 w-16 animate-spin text-primary" />
+            <p className="text-lg text-muted-foreground">Procesando archivo...</p>
+          </div>
+        ) : !fileData ? (
           <FileUpload onFileSelect={handleFile} key={fileKey} />
         ) : (
           <div className="grid lg:grid-cols-12 gap-8">
             <div className="lg:col-span-4 xl:col-span-3">
               <ConfigPanel
-                fileName={file?.name ?? 'Unknown file'}
+                fileName={file?.name ?? persistedFileName ?? 'Unknown file'}
                 headers={headers}
                 selectedColumns={selectedColumns}
                 setSelectedColumns={setSelectedColumns}
@@ -281,18 +372,19 @@ export default function ExcelInsightsPage() {
                 setDateColumn={setDateColumn}
                 constantFilters={constantFilters}
                 setConstantFilters={setConstantFilters}
-                onClear={resetFileUpload}
               />
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
-              <DataTable 
-                data={filteredData} 
-                headers={headers} 
-                visibleColumns={selectedColumns} 
-                originalData={fileData} 
+              <DataTable
+                data={filteredData}
+                headers={headers}
+                visibleColumns={selectedColumns}
+                originalData={fileData}
                 dataForSummaries={dataForSummaries}
                 packedSerials={packedSerials}
                 onPackingFileSelect={handlePackingFile}
+                onClear={resetFileUpload}
+                fileName={file?.name ?? persistedFileName ?? 'Unknown file'}
               />
             </div>
           </div>
