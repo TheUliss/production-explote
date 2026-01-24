@@ -359,7 +359,7 @@ export default function ExcelInsightsPage() {
         ) : !fileData ? (
           <FileUpload onFileSelect={handleFile} key={fileKey} />
         ) : (
-          <div className="grid lg:grid-cols-12 gap-8">
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-8">
             <div className="lg:col-span-4 xl:col-span-3">
               <ConfigPanel
                 fileName={file?.name ?? persistedFileName ?? 'Unknown file'}

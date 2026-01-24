@@ -75,14 +75,14 @@ export function FileUpload({ onFileSelect }: FileUploadProps) {
         </Alert>
       )}
       <div
-        className={`w-full p-8 border-2 border-dashed rounded-lg text-center transition-colors duration-200 cursor-pointer ${isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary'}`}
+        className={`w-full p-4 md:p-8 border-2 border-dashed rounded-lg text-center transition-colors duration-200 cursor-pointer ${isDragging ? 'border-primary bg-primary/10' : 'border-border hover:border-primary'}`}
         onDragEnter={handleDrag}
         onDragOver={handleDrag}
         onDragLeave={handleDrag}
         onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
       >
-        <UploadCloud className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+        <UploadCloud className="mx-auto h-12 w-12 md:h-16 md:w-16 text-muted-foreground mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Sube tu archivo Excel</h2>
         <p className="text-muted-foreground mb-2">Arrastra y suelta tu archivo .xlsx o .xls aquí, o haz clic para buscar.</p>
         <p className="text-sm text-muted-foreground mb-6">Tamaño máximo: {MAX_FILE_SIZE_MB}MB</p>

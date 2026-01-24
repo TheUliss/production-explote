@@ -353,16 +353,16 @@ export function DataTable({
                         </div>
 
                         {/* Stats and Download Buttons */}
-                        <div className="flex justify-between items-center">
-                            <p className="text-sm text-muted-foreground">
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <p className="text-sm text-muted-foreground w-full sm:w-auto text-center sm:text-left">
                                 {sortedData?.length ?? 0} row{(sortedData?.length ?? 0) === 1 ? '' : 's'} found. {selectedRows.length > 0 && `(${selectedRows.length} selected)`}
                             </p>
-                            <div className="flex items-center gap-2">
-                                <Button onClick={handleDownloadReport} disabled={(sortedData?.length ?? 0) === 0 || orderedVisibleColumns.length === 0}>
+                            <div className="flex flex-col w-full sm:w-auto sm:flex-row items-stretch sm:items-center gap-2">
+                                <Button onClick={handleDownloadReport} disabled={(sortedData?.length ?? 0) === 0 || orderedVisibleColumns.length === 0} className="w-full sm:w-auto">
                                     <Download className="mr-2 h-4 w-4" />
                                     Download Report
                                 </Button>
-                                <Button onClick={handleDownloadSerials} variant="secondary" disabled={selectedRows.length === 0}>
+                                <Button onClick={handleDownloadSerials} variant="secondary" disabled={selectedRows.length === 0} className="w-full sm:w-auto">
                                     <Download className="mr-2 h-4 w-4" />
                                     Download Serials
                                 </Button>
