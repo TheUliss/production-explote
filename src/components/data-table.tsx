@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/table"
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Download, Search, TableIcon } from 'lucide-react';
+import { AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Download, Search, TableIcon, Trash2, Upload, FileUp, FileDown } from 'lucide-react';
+import * as xlsx from 'xlsx';
 import { downloadReport } from '@/lib/xlsx-utils';
 import { ScrollArea, ScrollBar } from './ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
@@ -258,6 +259,13 @@ export function DataTable({
         return "bg-green-50 hover:bg-green-100 data-[state=selected]:bg-green-200";
     };
 
+    const handleDownloadTemplate = () => {
+        const ws = xlsx.utils.aoa_to_sheet([["Linea", "Seriales", "Packed Date"]]);
+        const wb = xlsx.utils.book_new();
+        xlsx.utils.book_append_sheet(wb, ws, "Template");
+        xlsx.writeFile(wb, "packing_template.xlsx");
+    };
+
     return (
         <Card className="h-full">
             <CardHeader>
@@ -309,34 +317,85 @@ export function DataTable({
                         </div>
 
                         {/* File Management & Packing Data */}
-                        <div className="border rounded-md p-4 space-y-3 bg-card">
-                            <div className="flex items-center justify-between">
-                                <h4 className="font-semibold">Archivo Cargado</h4>
-                                <Button variant="outline" size="sm" onClick={onClear}>
-                                    <Search className="mr-2 h-4 w-4" />
-                                    Nuevo Archivo
-                                </Button>
+                        <div className="space-y-4">
+                            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-4 rounded-lg border shadow-sm">
+                                <div className="flex items-center gap-4 w-full sm:w-auto">
+                                    <div className="flex-1 sm:flex-none">
+                                        <h3 className="font-medium text-sm text-gray-900 border-b pb-1 mb-2">Main Data</h3>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-medium truncate max-w-[200px]" title={fileName}>
+                                                {fileName}
+                                            </span>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                onClick={onClear}
+                                                title="Clear file"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-4 w-full sm:w-auto border-t sm:border-t-0 sm:border-l pt-4 sm:pt-0 sm:pl-4">
+                                    <div className="flex-1 sm:flex-none">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <h3 className="font-medium text-sm text-gray-900 border-b pb-1">Packing Data</h3>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 px-2 text-xs text-muted-foreground hover:text-primary ml-2"
+                                                onClick={handleDownloadTemplate}
+                                                title="Download Template"
+                                            >
+                                                <FileDown className="h-3 w-3 mr-1" />
+                                                Template
+                                            </Button>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <Button className="relative overflow-hidden h-9 bg-secondary/80 text-secondary-foreground hover:bg-secondary w-full sm:w-auto">
+                                                <input
+                                                    id="packing-file"
+                                                    type="file"
+                                                    accept=".xlsx, .xls"
+                                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) onPackingFileSelect(file);
+                                                    }}
+                                                />
+                                                <FileUp className="mr-2 h-4 w-4" />
+                                                {packedSerials.size > 0 ? `${packedSerials.size} Seriales` : "Upload Packing"}
+                                            </Button>
+                                            {packedSerials.size > 0 && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                                    onClick={() => onPackingFileSelect(new File([], ''))} // Hacky clear, ideally parent handles this
+                                                    title="Clear packing data"
+                                                >
+                                                    <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                            <p className="text-sm text-muted-foreground truncate" title={fileName}>
-                                📄 {fileName}
-                            </p>
-                            <div className="border-t pt-3 mt-3">
-                                <h4 className="font-semibold mb-2">Datos de Empaque</h4>
-                                <p className="text-sm text-muted-foreground mb-2">
-                                    Sube un archivo con seriales empacados. Debe contener una columna "Seriales".
-                                </p>
-                                <Input
-                                    id="packing-file"
-                                    type="file"
-                                    accept=".xlsx, .xls"
-                                    onChange={handlePackingFileUpload}
-                                    className="max-w-sm file:text-primary file:font-semibold"
-                                />
-                                {packedSerials.size > 0 &&
-                                    <p className="text-sm text-green-500 font-medium mt-2">
-                                        {packedSerials.size} seriales empacados cargados.
-                                    </p>
-                                }
+
+                            <div className="rounded-md border bg-white shadow-sm overflow-hidden">
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    <Input
+                                        type="text"
+                                        placeholder="Buscar en la tabla..."
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        className="pl-10"
+                                    />
+                                </div>
                             </div>
                         </div>
 
