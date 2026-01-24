@@ -323,7 +323,7 @@ export function DataTable({
                                     <div className="flex-1 sm:flex-none">
                                         <h3 className="font-medium text-sm text-gray-900 border-b pb-1 mb-2">Main Data</h3>
                                         <div className="flex items-center gap-2">
-                                            <span className="text-sm font-medium truncate max-w-[200px]" title={fileName}>
+                                            <span className="text-sm font-medium truncate max-w-[200px] !text-black opacity-100 z-10 relative" style={{ color: '#000000', visibility: 'visible' }} title={fileName}>
                                                 {fileName}
                                             </span>
                                             <Button
@@ -399,17 +399,7 @@ export function DataTable({
                             </div>
                         </div>
 
-                        {/* Search Bar */}
-                        <div className="relative">
-                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input
-                                type="text"
-                                placeholder="Buscar en la tabla..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-10"
-                            />
-                        </div>
+                        {/* Search Bar Removed (Duplicate) */}
 
                         {/* Stats and Download Buttons */}
                         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
