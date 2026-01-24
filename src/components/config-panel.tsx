@@ -9,7 +9,7 @@ import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
-import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import * as React from 'react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -61,11 +61,15 @@ export function ConfigPanel({
   };
 
   const addConstantFilter = () => {
-    setConstantFilters([...constantFilters, { id: Date.now().toString(), column: '', value: '' }]);
+    setConstantFilters([...constantFilters, { id: Date.now().toString(), column: '', value: '', enabled: true }]);
   };
 
   const updateConstantFilter = (id: string, key: 'column' | 'value', value: string) => {
     setConstantFilters(constantFilters.map(f => f.id === id ? { ...f, [key]: value } : f));
+  };
+
+  const toggleConstantFilter = (id: string) => {
+    setConstantFilters(constantFilters.map(f => f.id === id ? { ...f, enabled: f.enabled === false ? true : false } : f));
   };
 
   const removeConstantFilter = (id: string) => {
@@ -148,6 +152,15 @@ export function ConfigPanel({
                 </div>
                 {constantFilters.map((filter) => (
                   <div key={filter.id} className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className={cn("h-8 w-8 shrink-0", filter.enabled === false ? "text-muted-foreground opacity-50" : "text-primary")}
+                      onClick={() => toggleConstantFilter(filter.id)}
+                      title={filter.enabled === false ? "Activar filtro" : "Desactivar filtro"}
+                    >
+                      {filter.enabled === false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </Button>
                     <Select value={filter.column} onValueChange={(val) => updateConstantFilter(filter.id, 'column', val)}>
                       <SelectTrigger className="flex-1">
                         <SelectValue placeholder="Column" />
@@ -160,7 +173,7 @@ export function ConfigPanel({
                       placeholder="Value"
                       value={filter.value}
                       onChange={(e) => updateConstantFilter(filter.id, 'value', e.target.value)}
-                      className="flex-1"
+                      className={cn("flex-1", filter.enabled === false && "opacity-50 line-through")}
                     />
                     <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeConstantFilter(filter.id)}>
                       <MinusCircle className="h-4 w-4 text-destructive" />

@@ -13,7 +13,7 @@ import { DataTable } from '@/components/data-table';
 import { Loader2 } from 'lucide-react';
 
 
-export type ConstantFilter = { id: string; column: string; value: string };
+export type ConstantFilter = { id: string; column: string; value: string; enabled?: boolean };
 
 // Define the columns to always keep and their desired order.
 const REQUIRED_COLUMNS = ["Schedule Date", "Schedule Group", "Job Number", "Item Description", "Qty Ordered", "Customer"];
@@ -289,7 +289,10 @@ export default function ExcelInsightsPage() {
 
     // Constant filters
     const constantFilterObject = constantFilters.reduce((acc, filter) => {
-      if (filter.column && filter.value) {
+      // Default to enabled if property is missing (backward compatibility)
+      const isEnabled = filter.enabled !== false;
+
+      if (filter.column && filter.value && isEnabled) {
         if (acc[filter.column]) {
           acc[filter.column] += `,${filter.value}`;
         } else {
