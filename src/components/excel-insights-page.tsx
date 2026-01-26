@@ -11,6 +11,7 @@ import { FileUpload } from '@/components/file-upload';
 import { ConfigPanel } from '@/components/config-panel';
 import { DataTable } from '@/components/data-table';
 import { Loader2 } from 'lucide-react';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 
 export type ConstantFilter = { id: string; column: string; value: string; enabled?: boolean };
@@ -352,7 +353,12 @@ export default function ExcelInsightsPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <AppHeader />
+      <div className="relative">
+        <AppHeader />
+        <div className="absolute top-4 right-4 z-50">
+          <ThemeToggle />
+        </div>
+      </div>
       <main className="flex-1 container mx-auto px-4 md:px-6 py-8">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
