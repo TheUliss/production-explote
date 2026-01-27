@@ -54,7 +54,9 @@ export function DataTable({
     const [currentPage, setCurrentPage] = React.useState(1);
     const { toast } = useToast();
 
-    const orderedVisibleColumns = headers.filter(h => visibleColumns.includes(h));
+    // Previously we filtered headers to preserve original order. 
+    // Now we want to respect the user's custom order in visibleColumns.
+    const orderedVisibleColumns = visibleColumns;
 
     const today = startOfToday();
     const threeDays = addDays(today, 3);

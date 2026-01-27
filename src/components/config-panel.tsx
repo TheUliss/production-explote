@@ -1,19 +1,38 @@
 'use client';
 
+import * as React from 'react';
 import type { ConstantFilter } from './excel-insights-page';
 import { Button } from './ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { Checkbox } from './ui/checkbox';
+import { Card, CardContent, CardDescription, CardTitle } from './ui/card';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
-import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, ChevronRight, Eye, EyeOff } from 'lucide-react';
-import * as React from 'react';
+import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  type DropAnimation,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface ConfigPanelProps {
   fileName: string;
@@ -26,6 +45,40 @@ interface ConfigPanelProps {
   setDateColumn: (column: string) => void;
   constantFilters: ConstantFilter[];
   setConstantFilters: React.Dispatch<React.SetStateAction<ConstantFilter[]>>;
+}
+
+function SortableItem({ id }: { id: string }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "flex items-center justify-between p-2 mb-2 rounded-md border bg-card text-card-foreground shadow-sm select-none",
+        isDragging && "opacity-50"
+      )}
+    >
+      <div className="flex items-center gap-2 truncate">
+        <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground">
+          <GripVertical className="h-4 w-4" />
+        </div>
+        <span className="text-sm font-medium truncate max-w-[180px]" title={id}>{id}</span>
+      </div>
+    </div>
+  );
 }
 
 export function ConfigPanel({
@@ -42,22 +95,53 @@ export function ConfigPanel({
 }: ConfigPanelProps) {
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = React.useState(true);
+  const [activeId, setActiveId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     // Default closed on mobile, open on desktop
     setIsOpen(!isMobile);
   }, [isMobile]);
 
-  const handleSelectAllColumns = (checked: boolean) => {
-    setSelectedColumns(checked ? headers : []);
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const hiddenColumns = headers.filter(h => !selectedColumns.includes(h));
+
+  const handleDragStart = (event: any) => {
+    setActiveId(event.active.id);
   };
 
-  const handleColumnChange = (column: string) => {
-    setSelectedColumns(
-      selectedColumns.includes(column)
-        ? selectedColumns.filter((c) => c !== column)
-        : [...selectedColumns, column]
-    );
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = selectedColumns.indexOf(active.id as string);
+      const newIndex = selectedColumns.indexOf(over.id as string);
+      setSelectedColumns(arrayMove(selectedColumns, oldIndex, newIndex));
+    }
+    setActiveId(null);
+  };
+
+  const removeColumn = (column: string) => {
+    setSelectedColumns(selectedColumns.filter(c => c !== column));
+  };
+
+  const addColumn = (column: string) => {
+    setSelectedColumns([...selectedColumns, column]);
+  };
+
+  const dropAnimation: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: '0.5',
+        },
+      },
+    }),
   };
 
   const addConstantFilter = () => {
@@ -96,29 +180,73 @@ export function ConfigPanel({
         <CollapsibleContent>
           <CardContent className="space-y-6 pt-0">
             <div>
-              <Label className="text-base font-medium flex items-center gap-2"><Columns className="h-4 w-4" /> Columns to Show</Label>
+              <Label className="text-base font-medium flex items-center gap-2"><Columns className="h-4 w-4" /> Columns (Drag & Drop)</Label>
               <Separator className="my-2" />
-              <div className="flex items-center space-x-2 mb-2">
-                <Checkbox
-                  id="select-all"
-                  checked={headers.length > 0 && selectedColumns.length === headers.length}
-                  onCheckedChange={handleSelectAllColumns}
-                  disabled={headers.length === 0}
-                />
-                <Label htmlFor="select-all" className="font-medium">Select All</Label>
+
+              {/* Visible Columns (Sortable) */}
+              <div className="mb-4">
+                <Label className="text-xs text-muted-foreground mb-2 block">Visible ({selectedColumns.length})</Label>
+                <ScrollArea className="h-48 rounded-md border bg-muted/20 p-2">
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                  >
+                    <SortableContext
+                      items={selectedColumns}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {selectedColumns.map((col) => (
+                        <div key={col} className="relative group">
+                          <SortableItem id={col} />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => removeColumn(col)}
+                            title="Hide column"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </SortableContext>
+                    <DragOverlay dropAnimation={dropAnimation}>
+                      {activeId ? <SortableItem id={activeId} /> : null}
+                    </DragOverlay>
+                  </DndContext>
+                  {selectedColumns.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-8 italic">No columns visible. Add some below.</p>
+                  )}
+                </ScrollArea>
               </div>
-              <ScrollArea className="h-40 rounded-md border p-2">
-                {headers.length > 0 ? headers.map((header) => (
-                  <div key={header} className="flex items-center space-x-2 p-1">
-                    <Checkbox
-                      id={header}
-                      checked={selectedColumns.includes(header)}
-                      onCheckedChange={() => handleColumnChange(header)}
-                    />
-                    <Label htmlFor={header} className="font-normal w-full truncate" title={header}>{header}</Label>
-                  </div>
-                )) : <p className="text-sm text-muted-foreground text-center p-4">Upload a file to see columns.</p>}
-              </ScrollArea>
+
+              {/* Hidden Columns */}
+              <div>
+                <Label className="text-xs text-muted-foreground mb-2 block">Hidden ({hiddenColumns.length})</Label>
+                <ScrollArea className="h-32 rounded-md border p-2">
+                  {hiddenColumns.length > 0 ? (
+                    hiddenColumns.map(col => (
+                      <div key={col} className="flex items-center justify-between p-2 mb-1 rounded-md hover:bg-muted/50 transition-colors">
+                        <span className="text-sm truncate max-w-[200px]" title={col}>{col}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-primary"
+                          onClick={() => addColumn(col)}
+                          title="Show column"
+                        >
+                          <Plus className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-4 italic">All columns are visible.</p>
+                  )}
+                </ScrollArea>
+              </div>
+
             </div>
 
             <div className="space-y-2">
