@@ -119,18 +119,22 @@ export default function ExcelInsightsPage() {
         if (Array.isArray(json) && json.length > 0) {
           const originalHeaders = Object.keys(json[0] as object);
 
-          // 1. Determine available columns based on REQUIRED_COLUMNS and their order.
-          const availableHeaders = REQUIRED_COLUMNS.filter(h => originalHeaders.includes(h));
+          // 1. Get all available headers from the file
+          // const availableHeaders = REQUIRED_COLUMNS.filter(h => originalHeaders.includes(h)); // OLD LOGIC
+          const availableHeaders = originalHeaders;
 
-          if (availableHeaders.length === 0) {
-            throw new Error(`Columnas requeridas no encontradas. El archivo debe contener: ${REQUIRED_COLUMNS.join(', ')}`);
+          // Check if at least some required columns exist (optional validation, maybe we still want to warn?)
+          const presentRequiredColumns = REQUIRED_COLUMNS.filter(h => originalHeaders.includes(h));
+
+          if (presentRequiredColumns.length === 0) {
+            throw new Error(`No se encontraron columnas requeridas. El archivo debe contener al menos alguna de: ${REQUIRED_COLUMNS.join(', ')}`);
           }
 
           const missingColumns = REQUIRED_COLUMNS.filter(h => !originalHeaders.includes(h));
           if (missingColumns.length > 0) {
             toast({
               title: "Advertencia",
-              description: `Columnas faltantes: ${missingColumns.join(', ')}. Continuando con las disponibles.`,
+              description: `Algunas columnas estándar no se encontraron: ${missingColumns.join(', ')}. Puedes seleccionar otras columnas manualmente.`,
             });
           }
 
@@ -180,7 +184,8 @@ export default function ExcelInsightsPage() {
           if (validPersistedColumns.length > 0) {
             setSelectedColumns(validPersistedColumns);
           } else {
-            setSelectedColumns(availableHeaders); // Default to all available required columns
+            // Default to ONLY the required columns that exist in the file
+            setSelectedColumns(presentRequiredColumns);
           }
 
           if (!availableHeaders.includes(dateColumn)) {

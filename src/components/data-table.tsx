@@ -301,6 +301,24 @@ export function DataTable({
     }, [filteredData, data, packedSerials, today, threeDays, sevenDays]);
 
     const handleCopySummary = () => {
+        // Helper to formatting list
+        const formatJobs = (jobs: any[]) => {
+            if (jobs.length === 0) return "N/A";
+            return jobs.map(j => `- ${j['Job Number'] ?? 'No Job #'} (${j['Schedule Group'] ?? 'No Group'})`).join('\n');
+        };
+
+        const sourceData = filteredData || data || [];
+
+        const overdueList = sourceData.filter(row => {
+            const d = row['Schedule Date'];
+            return d instanceof Date && d < today;
+        });
+
+        const due3DaysList = sourceData.filter(row => {
+            const d = row['Schedule Date'];
+            return d instanceof Date && d >= today && d <= threeDays;
+        });
+
         const text = `
 Resumen de Producción (Filtrado):
 ----------------------
@@ -308,11 +326,17 @@ Total Jobs: ${summaryStats.totalJobs}
 Empacados (Global): ${summaryStats.totalPacked}
 ----------------------
 JOB's Vencidos: ${summaryStats.overdueJobs}
+LISTA VENCIDOS:
+${formatJobs(overdueList)}
+
 JOB's a vencer prox 3 dias: ${summaryStats.dueSoon3Jobs}
+LISTA PROX 3 DIAS:
+${formatJobs(due3DaysList)}
+
 JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
 `.trim();
         navigator.clipboard.writeText(text);
-        toast({ title: "Copiado", description: "Resumen copiado al portapapeles." });
+        toast({ title: "Copiado", description: "Resumen detallado copiado al portapapeles." });
     };
 
 
