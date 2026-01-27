@@ -13,8 +13,9 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { AnalyticsDashboard } from '@/components/analytics-dashboard';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/data-table';
-import { Loader2, BarChart3, ChevronUp, ChevronDown, CloudUpload, CloudDownload, Users, Globe } from 'lucide-react';
+import { Loader2, BarChart3, ChevronUp, ChevronDown, CloudUpload, CloudDownload, Users, Globe, FileUp, TableIcon } from 'lucide-react';
 import { dbService } from '@/lib/db-service';
+import { Card } from '@/components/ui/card';
 
 
 export type ConstantFilter = { id: string; column: string; value: string; enabled?: boolean };
@@ -413,14 +414,33 @@ export default function ExcelInsightsPage() {
             <p className="text-lg text-muted-foreground">Procesando archivo...</p>
           </div>
         ) : !fileData ? (
-          <div className="space-y-6">
-            <FileUpload onFileSelect={handleFile} key={fileKey} />
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-xs text-muted-foreground">O también puedes</span>
-              <Button variant="outline" size="sm" onClick={loadFromCloud}>
-                <CloudDownload className="mr-2 h-4 w-4 text-blue-500" />
-                Cargar último proyecto compartido (Cloud)
-              </Button>
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 min-h-[60vh]">
+            <div className="lg:col-span-4 xl:col-span-3 space-y-6">
+              <Card className="p-6 border-dashed border-2 flex flex-col items-center justify-center text-center space-y-4">
+                <div className="p-3 bg-primary/10 rounded-full">
+                  <FileUp className="h-8 w-8 text-primary" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-lg">Cargar Producción</h3>
+                  <p className="text-sm text-muted-foreground">Sube tu archivo Excel principal para comenzar.</p>
+                </div>
+                <FileUpload onFileSelect={handleFile} key={fileKey} />
+              </Card>
+
+              <div className="flex flex-col items-stretch gap-2">
+                <span className="text-xs text-center text-muted-foreground uppercase font-semibold">Opciones de Red</span>
+                <Button variant="outline" size="sm" onClick={loadFromCloud} className="justify-start">
+                  <CloudDownload className="mr-2 h-4 w-4 text-blue-500" />
+                  Cargar desde la Nube
+                </Button>
+              </div>
+            </div>
+            <div className="lg:col-span-8 xl:col-span-9 flex items-center justify-center border rounded-xl bg-muted/20">
+              <div className="text-center space-y-2 opacity-50">
+                <TableIcon className="h-12 w-12 mx-auto mb-4" />
+                <p className="text-xl font-medium">Esperando datos...</p>
+                <p className="text-sm">Configura y carga tu archivo en el panel izquierdo.</p>
+              </div>
             </div>
           </div>
         ) : (
@@ -437,6 +457,8 @@ export default function ExcelInsightsPage() {
                 setDateColumn={setDateColumn}
                 constantFilters={constantFilters}
                 setConstantFilters={setConstantFilters}
+                onPackingFileSelect={handlePackingFile}
+                onClear={resetFileUpload}
               />
               <div className="mt-4 p-4 border rounded-md bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
                 <div className="flex items-center gap-2 mb-2">

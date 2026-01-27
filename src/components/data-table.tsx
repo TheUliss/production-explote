@@ -376,13 +376,15 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                             <span className="text-2xl font-bold">{summaryStats.totalJobs}</span>
                         </div>
                     </Card>
-                    <Card className="p-4 flex flex-col justify-between shadow-sm border-green-200 bg-green-50/50 dark:bg-green-900/10">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Empacados</span>
-                        <div className="flex items-center gap-2 mt-1">
-                            <CheckCircle2 className="h-4 w-4 text-green-600" />
-                            <span className="text-2xl font-bold text-green-700 dark:text-green-400">{summaryStats.totalPacked}</span>
-                        </div>
-                    </Card>
+                    {packedSerials.size > 0 && (
+                        <Card className="p-4 flex flex-col justify-between shadow-sm border-green-200 bg-green-50/50 dark:bg-green-900/10">
+                            <span className="text-xs text-muted-foreground font-medium uppercase">Empacados</span>
+                            <div className="flex items-center gap-2 mt-1">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                <span className="text-2xl font-bold text-green-700 dark:text-green-400">{summaryStats.totalPacked}</span>
+                            </div>
+                        </Card>
+                    )}
                     <Card className="p-4 flex flex-col justify-between shadow-sm border-red-200 bg-red-50/50 dark:bg-red-900/10">
                         <span className="text-xs text-muted-foreground font-medium uppercase">JOB's Vencidos</span>
                         <div className="flex items-center gap-2 mt-1">
@@ -497,33 +499,7 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                     Template
                                                 </Button>
                                             </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button className="relative overflow-hidden h-9 bg-secondary/80 text-secondary-foreground hover:bg-secondary w-full sm:w-auto">
-                                                    <input
-                                                        id="packing-file"
-                                                        type="file"
-                                                        accept=".xlsx, .xls"
-                                                        className="absolute inset-0 opacity-0 cursor-pointer"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) onPackingFileSelect(file);
-                                                        }}
-                                                    />
-                                                    <FileUp className="mr-2 h-4 w-4" />
-                                                    {packedSerials.size > 0 ? `${packedSerials.size} Seriales` : "Upload Packing"}
-                                                </Button>
-                                                {packedSerials.size > 0 && (
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                        onClick={() => onPackingFileSelect(new File([], ''))} // Hacky clear, ideally parent handles this
-                                                        title="Clear packing data"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                )}
-                                            </div>
+                                            {/* Upload buttons moved to ConfigPanel */}
                                         </div>
                                     </div>
                                 </div>

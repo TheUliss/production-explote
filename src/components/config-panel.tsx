@@ -9,13 +9,20 @@ import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from './ui/separator';
-import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X } from 'lucide-react';
+import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X, Save, FolderOpen, Trash2, Loader2, FileUp, FileDown, Search, Trash } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { dbService, type ViewProfile } from '@/lib/db-service';
-import { Save, FolderOpen, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   DndContext,
   closestCenter,
@@ -48,6 +55,8 @@ interface ConfigPanelProps {
   setDateColumn: (column: string) => void;
   constantFilters: ConstantFilter[];
   setConstantFilters: React.Dispatch<React.SetStateAction<ConstantFilter[]>>;
+  onPackingFileSelect: (file: File) => void;
+  onClear: () => void;
 }
 
 function SortableItem({ id }: { id: string }) {
@@ -95,6 +104,8 @@ export function ConfigPanel({
   setDateColumn,
   constantFilters,
   setConstantFilters,
+  onPackingFileSelect,
+  onClear,
 }: ConfigPanelProps) {
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = React.useState(true);
