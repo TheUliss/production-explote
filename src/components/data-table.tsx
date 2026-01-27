@@ -412,8 +412,8 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
 
             <Card className="h-full">
                 <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                        <div>
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div className="space-y-1">
                             <CardTitle className="text-xl flex items-center gap-2">
                                 <TableIcon className="text-accent" />
                                 Filtered Data
@@ -423,18 +423,18 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                             </CardDescription>
                         </div>
                         {data && (
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" onClick={handleDownloadReport} disabled={(data?.length ?? 0) === 0} title="Descargar Reporte Excel">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <Button variant="outline" size="sm" onClick={handleDownloadReport} disabled={(data?.length ?? 0) === 0} title="Descargar Reporte Excel" className="flex-1 md:flex-none">
                                     <Download className="mr-2 h-3 w-3 text-emerald-600" />
                                     Descargar Reporte
                                 </Button>
 
-                                <Button variant="outline" size="sm" onClick={handleDownloadSerials} disabled={selectedRows.length === 0} title="Descargar Seriales Seleccionados">
+                                <Button variant="outline" size="sm" onClick={handleDownloadSerials} disabled={selectedRows.length === 0} title="Descargar Seriales Seleccionados" className="flex-1 md:flex-none">
                                     <Download className="mr-2 h-3 w-3 text-blue-600" />
                                     Download Serials
                                 </Button>
 
-                                <Button variant="outline" size="sm" onClick={handleCopySummary} title="Copiar Resumen">
+                                <Button variant="outline" size="sm" onClick={handleCopySummary} title="Copiar Resumen" className="flex-1 md:flex-none">
                                     <Copy className="mr-2 h-3 w-3 text-orange-600" />
                                     Copiar Resumen
                                 </Button>

@@ -225,23 +225,38 @@ export default function ExcelInsightsPage() {
     if (dateFilter && dateFilter !== 'all' && dateColumn) {
       const today = startOfToday();
       dataAfterDateFilters = dataAfterDateFilters.filter(row => {
-        let itemDate = row[dateColumn];
+        let val = row[dateColumn];
+        if (!val) return false;
 
-        // Coerce to Date if it's a string or number
-        if (itemDate && !(itemDate instanceof Date)) {
-          const parsed = new Date(itemDate);
+        let itemDate: Date | null = null;
+        if (val instanceof Date) {
+          itemDate = val;
+        } else if (typeof val === 'number') {
+          // Robust Excel Serial to JS Date
+          itemDate = new Date(Math.round((val - 25569) * 86400 * 1000));
+        } else {
+          // Try standard parsing for strings
+          const parsed = new Date(val);
           if (isValid(parsed)) itemDate = parsed;
         }
 
-        if (!(itemDate instanceof Date) || !isValid(itemDate)) return false;
+        if (!itemDate || !isValid(itemDate)) return false;
+
+        // Clean comparison by normalizing to start of day
+        const currentItemDate = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
 
         switch (dateFilter) {
-          case 'overdue': return itemDate < today;
-          case 'due-soon-7':
+          case 'overdue':
+            return currentItemDate < today;
+          case 'due-soon-7': {
             const aWeekFromNow = addDays(today, 7);
-            return itemDate >= today && itemDate <= aWeekFromNow;
-          case 'current-month':
-            return itemDate >= startOfMonth(today) && itemDate <= endOfMonth(today);
+            return currentItemDate >= today && currentItemDate <= aWeekFromNow;
+          }
+          case 'current-month': {
+            const start = startOfMonth(today);
+            const end = endOfMonth(today);
+            return currentItemDate >= start && currentItemDate <= end;
+          }
           default: return true;
         }
       });
