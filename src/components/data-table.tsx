@@ -265,75 +265,51 @@ export function DataTable({
         xlsx.utils.book_append_sheet(wb, ws, "Template");
         xlsx.writeFile(wb, "packing_template.xlsx");
     };
-
     // --- Enhanced Summary Logic ---
     const summaryStats = React.useMemo(() => {
-        if (!data) return { total: 0, packed: 0, overdue: 0, dueSoon3: 0, dueSoon7: 0 };
+        // Use filteredData (which reflects search) or fallback to data (which reflects parent filters)
+        // If filteredData is null initially (before search logic runs?), use data. 
+        // Actually filteredData is initialized in useMemo from data.
+        const sourceData = filteredData || data || [];
 
-        let totalItems = 0;
-        let packedCount = 0; // Using set size is easier, but let's count matched items if possible? 
-        // Actually, user wants "Reporte de empacados tambien debe influir".
-        // Since we don't have row-level IDs clearly defined except via logic in downloadReport,
-        // we will approximate using the packedSerials set size for "Packed" count, 
-        // BUT for overdue/due soon logic, we need to know if specific rows are packed.
-        // The implementation in downloadReport generates serials. We can't easily reverse check without generating themall.
-        // ALTERNATIVE: The User requested "Resumen mas completo... cuando se agrega reporte de empacados tambien debe influir".
-        // Let's rely on the `packedSerials.size` for the total packed.
-        // And for Overdue, we can't subtract easily unless we know which valid items are packed.
-        // SHORTCUT: We will show Total Items (Sum of Qty) and Total Packed (Set Size).
-        // Then we calculate "Pending" = Total - Packed. 
-        // For Overdue, we will just show the standard overdue count of *jobs* (rows) or *items*? 
-        // User asked "Items vencidos". Let's summing Qty Ordered for overdue rows.
+        if (sourceData.length === 0) return { totalJobs: 0, totalPacked: 0, overdueJobs: 0, dueSoon3Jobs: 0, dueSoon7Jobs: 0 };
 
-        // Let's iterate to sum quantities
-        let totalQty = 0;
-        let overdueQty = 0;
-        let dueSoon3Qty = 0;
-        let dueSoon7Qty = 0;
+        let totalJobs = sourceData.length;
+        let overdueJobs = 0;
+        let dueSoon3Jobs = 0;
+        let dueSoon7Jobs = 0;
 
-        data.forEach(row => {
-            const qty = parseInt(row['Qty Ordered'] || '0', 10);
-            if (isNaN(qty)) return;
-            totalQty += qty;
-
+        sourceData.forEach(row => {
             const scheduleDate = row['Schedule Date'];
             if (scheduleDate instanceof Date) {
-                if (scheduleDate < today) overdueQty += qty;
-                else if (scheduleDate <= threeDays) dueSoon3Qty += qty;
-                else if (scheduleDate <= sevenDays) dueSoon7Qty += qty;
+                if (scheduleDate < today) overdueJobs++;
+                else if (scheduleDate <= threeDays) dueSoon3Jobs++;
+                else if (scheduleDate <= sevenDays) dueSoon7Jobs++;
             }
         });
 
-        // Optimization: If we assume packed items cover the *oldest* overdue first (FIFO), 
-        // we could subtract packedCount from overdueQty. But that's an assumption.
-        // Precise way: logic is missing to link Serial X to Job Y without generating string.
-        // Let's stick to showing "Total Packed" and "Pending Global".
-        // And for Overdue, show "Overdue Items (Total)". 
-        // The user said "reporte... debe influir". 
-        // Maybe he implies: Net Overdue = Overdue Items - Packed items (assuming packed are the urgent ones).
-        // Let's preserve the original breakdown but show the Delta.
+        // "Total Packed" remains as the global count of scanned serials (contextual info)
+        // It is NOT filtered by the view because packed items are a separate list loaded.
 
         return {
-            totalItems: totalQty,
+            totalJobs,
             totalPacked: packedSerials.size,
-            pending: Math.max(0, totalQty - packedSerials.size),
-            overdue: overdueQty,
-            dueSoon3: dueSoon3Qty,
-            dueSoon7: dueSoon7Qty
+            overdueJobs,
+            dueSoon3Jobs,
+            dueSoon7Jobs
         };
-    }, [data, packedSerials, today, threeDays, sevenDays]);
+    }, [filteredData, data, packedSerials, today, threeDays, sevenDays]);
 
     const handleCopySummary = () => {
         const text = `
-Resumen de Producción:
+Resumen de Producción (Filtrado):
 ----------------------
-Total Items: ${summaryStats.totalItems}
-Empacados: ${summaryStats.totalPacked}
-Pendientes: ${summaryStats.pending}
+Total Jobs: ${summaryStats.totalJobs}
+Empacados (Global): ${summaryStats.totalPacked}
 ----------------------
-Vencidos: ${summaryStats.overdue}
-Vence 3 días: ${summaryStats.dueSoon3}
-Vence 7 días: ${summaryStats.dueSoon7}
+JOB's Vencidos: ${summaryStats.overdueJobs}
+JOB's a vencer prox 3 dias: ${summaryStats.dueSoon3Jobs}
+JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
 `.trim();
         navigator.clipboard.writeText(text);
         toast({ title: "Copiado", description: "Resumen copiado al portapapeles." });
@@ -344,12 +320,12 @@ Vence 7 días: ${summaryStats.dueSoon7}
         <div className="space-y-4">
             {/* Enhanced Summary Cards */}
             {data && (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                     <Card className="p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Total Items</span>
+                        <span className="text-xs text-muted-foreground font-medium uppercase">Total Jobs</span>
                         <div className="flex items-center gap-2 mt-1">
                             <TableIcon className="h-4 w-4 text-blue-500" />
-                            <span className="text-2xl font-bold">{summaryStats.totalItems}</span>
+                            <span className="text-2xl font-bold">{summaryStats.totalJobs}</span>
                         </div>
                     </Card>
                     <Card className="p-4 flex flex-col justify-between shadow-sm border-green-200 bg-green-50/50 dark:bg-green-900/10">
@@ -359,32 +335,25 @@ Vence 7 días: ${summaryStats.dueSoon7}
                             <span className="text-2xl font-bold text-green-700 dark:text-green-400">{summaryStats.totalPacked}</span>
                         </div>
                     </Card>
-                    <Card className="p-4 flex flex-col justify-between shadow-sm">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Pendientes</span>
-                        <div className="flex items-center gap-2 mt-1">
-                            <Clock className="h-4 w-4 text-gray-500" />
-                            <span className="text-2xl font-bold">{summaryStats.pending}</span>
-                        </div>
-                    </Card>
                     <Card className="p-4 flex flex-col justify-between shadow-sm border-red-200 bg-red-50/50 dark:bg-red-900/10">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">Vencidos (Qty)</span>
+                        <span className="text-xs text-muted-foreground font-medium uppercase">JOB's Vencidos</span>
                         <div className="flex items-center gap-2 mt-1">
                             <AlertCircle className="h-4 w-4 text-red-600" />
-                            <span className="text-2xl font-bold text-red-700 dark:text-red-400">{summaryStats.overdue}</span>
+                            <span className="text-2xl font-bold text-red-700 dark:text-red-400">{summaryStats.overdueJobs}</span>
                         </div>
                     </Card>
                     <Card className="p-4 flex flex-col justify-between shadow-sm border-orange-200 bg-orange-50/50 dark:bg-orange-900/10">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">3 Días (Qty)</span>
+                        <span className="text-xs text-muted-foreground font-medium uppercase">JOB's a vencer prox 3 dias</span>
                         <div className="flex items-center gap-2 mt-1">
                             <AlertTriangle className="h-4 w-4 text-orange-600" />
-                            <span className="text-2xl font-bold text-orange-700 dark:text-orange-400">{summaryStats.dueSoon3}</span>
+                            <span className="text-2xl font-bold text-orange-700 dark:text-orange-400">{summaryStats.dueSoon3Jobs}</span>
                         </div>
                     </Card>
                     <Card className="p-4 flex flex-col justify-between shadow-sm border-yellow-200 bg-yellow-50/50 dark:bg-yellow-900/10">
-                        <span className="text-xs text-muted-foreground font-medium uppercase">7 Días (Qty)</span>
+                        <span className="text-xs text-muted-foreground font-medium uppercase">JOB's a vencer prox 7 dias</span>
                         <div className="flex items-center gap-2 mt-1">
                             <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                            <span className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{summaryStats.dueSoon7}</span>
+                            <span className="text-2xl font-bold text-yellow-700 dark:text-yellow-400">{summaryStats.dueSoon7Jobs}</span>
                         </div>
                     </Card>
                 </div>
@@ -420,17 +389,7 @@ Vence 7 días: ${summaryStats.dueSoon7}
                         </div>
                     ) : (
                         <div className='space-y-4'>
-                            {/* Overdue Alert */}
-                            {overdueCount > 0 && (
-                                <Alert variant="destructive" className="border-red-500 bg-red-50">
-                                    <AlertTriangle className="h-5 w-5" />
-                                    <AlertTitle className="text-red-800 font-bold">¡Atención! Items Vencidos</AlertTitle>
-                                    <AlertDescription className="text-red-700">
-                                        Hay <span className="font-bold">{overdueCount}</span> item{overdueCount > 1 ? 's' : ''} con fecha vencida que requieren atención inmediata.
-                                    </AlertDescription>
-                                </Alert>
-                            )}
-
+                            {/* Redundancy Alert Removed here */}
                             {/* Compact Color Legend */}
                             <div className="flex flex-wrap items-center gap-3 p-2 border rounded-md bg-muted/30 text-xs">
                                 <span className="font-medium text-muted-foreground">Leyenda:</span>
