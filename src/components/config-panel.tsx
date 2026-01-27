@@ -83,11 +83,11 @@ function SortableItem({ id }: { id: string }) {
         isDragging && "opacity-50"
       )}
     >
-      <div className="flex items-center gap-2 truncate">
+      <div className="flex items-center gap-2 truncate text-[11px]">
         <div {...attributes} {...listeners} className="cursor-grab text-muted-foreground hover:text-foreground">
-          <GripVertical className="h-4 w-4" />
+          <GripVertical className="h-3.5 w-3.5" />
         </div>
-        <span className="text-sm font-medium truncate max-w-[180px]" title={id}>{id}</span>
+        <span className="font-medium truncate max-w-[180px]" title={id}>{id}</span>
       </div>
     </div>
   );
@@ -164,7 +164,6 @@ export function ConfigPanel({
   };
 
   React.useEffect(() => {
-    // Default closed on mobile, open on desktop
     setIsOpen(!isMobile);
   }, [isMobile]);
 
@@ -231,8 +230,10 @@ export function ConfigPanel({
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <div className="flex items-center justify-between p-6 pb-2">
           <div className="space-y-1.5">
-            <CardTitle className="text-xl">Configuration</CardTitle>
-            <CardDescription className="truncate max-w-[200px]" title={fileName}>{fileName}</CardDescription>
+            <CardTitle className="text-xl font-bold">Configuración</CardTitle>
+            <CardDescription className="truncate max-w-[200px]" title={fileName}>
+              {fileName}
+            </CardDescription>
           </div>
 
           <CollapsibleTrigger asChild>
@@ -247,51 +248,127 @@ export function ConfigPanel({
           <CardContent className="space-y-6 pt-0">
             {/* View Profiles Section */}
             <div className="space-y-3">
-              <Label className="text-base font-medium flex items-center gap-2"><Save className="h-4 w-4" /> Perfiles de Vista</Label>
+              <Label className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
+                <Save className="h-3 w-3" /> Perfiles de Vista
+              </Label>
               <Separator className="my-1" />
 
               <div className="flex gap-2">
                 <Input
-                  placeholder="Nombre del perfil..."
+                  placeholder="Nuevo..."
                   value={newProfileName}
                   onChange={(e) => setNewProfileName(e.target.value)}
-                  className="h-8 text-xs"
+                  className="h-8 text-[11px]"
                 />
-                <Button size="sm" className="h-8" onClick={handleSaveProfile} disabled={isSaving || !newProfileName}>
+                <Button size="sm" className="h-8 px-2 text-[11px]" onClick={handleSaveProfile} disabled={isSaving || !newProfileName}>
                   {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
-                  Guardar
+                  Save
                 </Button>
               </div>
 
               <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
                 {isLoadingProfiles ? (
-                  <div className="flex justify-center p-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
-                ) : profiles.length > 0 ? profiles.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between group p-1.5 rounded-md hover:bg-muted/50 border border-transparent hover:border-border transition-all">
-                    <button
-                      className="text-xs font-medium flex items-center gap-2 truncate text-left flex-1"
-                      onClick={() => applyProfile(p)}
-                    >
-                      <FolderOpen className="h-3 w-3 text-blue-500" />
-                      {p.name}
-                    </button>
-                    <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => deleteProfile(p.id)}>
-                      <Trash2 className="h-3 w-3 text-destructive" />
-                    </Button>
-                  </div>
-                )) : (
-                  <p className="text-[10px] text-muted-foreground text-center py-2 italic font-light italic">No hay perfiles guardados.</p>
+                  <div className="flex justify-center p-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground opacity-20" /></div>
+                ) : profiles.length > 0 ? (
+                  profiles.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between group p-1.5 rounded-md hover:bg-muted/50 border border-transparent hover:border-border transition-all">
+                      <button
+                        className="text-[11px] font-medium flex items-center gap-2 truncate text-left flex-1"
+                        onClick={() => applyProfile(p)}
+                      >
+                        <FolderOpen className="h-3 w-3 text-blue-500" />
+                        {p.name}
+                      </button>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => deleteProfile(p.id)}>
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-[10px] text-muted-foreground text-center py-2 italic font-light">No hay perfiles.</p>
                 )}
               </div>
             </div>
+
+            {/* Centralized Upload Tools Section */}
+            <div className="space-y-3 p-3 border rounded-md bg-muted/30">
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground inline-block bg-background px-1 -mt-5">Archivos</Label>
+              <div className="grid grid-cols-1 gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 justify-start text-[11px] border-green-200/50 bg-green-50/30 hover:bg-green-100 dark:bg-green-900/10 dark:hover:bg-green-900/20"
+                  asChild
+                >
+                  <a href="#" onClick={(e) => {
+                    e.preventDefault();
+                    const xlsx = require('xlsx');
+                    const ws = xlsx.utils.aoa_to_sheet([["Linea", "Seriales", "Packed Date"]]);
+                    const wb = xlsx.utils.book_new();
+                    xlsx.utils.book_append_sheet(wb, ws, "Template");
+                    xlsx.writeFile(wb, "packing_template.xlsx");
+                  }} >
+                    <FileDown className="mr-2 h-3.5 w-3.5 text-green-600" />
+                    Template Packing
+                  </a>
+                </Button>
+
+                <Button variant="outline" size="sm" className="h-8 justify-start text-[11px] relative overflow-hidden" asChild>
+                  <label className="cursor-pointer">
+                    <FileUp className="mr-2 h-3.5 w-3.5 text-blue-500" />
+                    Subir Empaque
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".xlsx, .xls"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) onPackingFileSelect(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 justify-start text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                  onClick={onClear}
+                >
+                  <Trash className="mr-2 h-3.5 w-3.5" />
+                  Limpiar Todo
+                </Button>
+              </div>
+            </div>
+
+            {/* Columns Layout Section */}
             <div>
-              <Label className="text-base font-medium flex items-center gap-2"><Columns className="h-4 w-4" /> Columns (Drag & Drop)</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-sm font-semibold flex items-center gap-2"><Columns className="h-3 w-3" /> Columnas</Label>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-primary" disabled={hiddenColumns.length === 0}>
+                      <Plus className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56 max-h-80 overflow-y-auto">
+                    <DropdownMenuLabel className="text-xs">Agregar Columna</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {hiddenColumns.map(col => (
+                      <DropdownMenuItem key={col} onClick={() => addColumn(col)} className="text-[11px] cursor-pointer">
+                        <Plus className="mr-2 h-3 w-3 text-primary" />
+                        {col}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
               <Separator className="my-2" />
 
-              {/* Visible Columns (Sortable) */}
               <div className="mb-4">
-                <Label className="text-xs text-muted-foreground mb-2 block">Visible ({selectedColumns.length})</Label>
-                <ScrollArea className="h-48 rounded-md border bg-muted/20 p-2">
+                <ScrollArea className="h-64 rounded-md border bg-muted/10 p-2">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -310,9 +387,8 @@ export function ConfigPanel({
                             size="icon"
                             className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
                             onClick={() => removeColumn(col)}
-                            title="Hide column"
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       ))}
@@ -322,98 +398,71 @@ export function ConfigPanel({
                     </DragOverlay>
                   </DndContext>
                   {selectedColumns.length === 0 && (
-                    <p className="text-sm text-muted-foreground text-center py-8 italic">No columns visible. Add some below.</p>
+                    <p className="text-[11px] text-muted-foreground text-center py-8 italic font-light">No hay columnas visibles.</p>
                   )}
                 </ScrollArea>
               </div>
-
-              {/* Hidden Columns */}
-              <div>
-                <Label className="text-xs text-muted-foreground mb-2 block">Hidden ({hiddenColumns.length})</Label>
-                <ScrollArea className="h-32 rounded-md border p-2">
-                  {hiddenColumns.length > 0 ? (
-                    hiddenColumns.map(col => (
-                      <div key={col} className="flex items-center justify-between p-2 mb-1 rounded-md hover:bg-muted/50 transition-colors">
-                        <span className="text-sm truncate max-w-[200px]" title={col}>{col}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-primary"
-                          onClick={() => addColumn(col)}
-                          title="Show column"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4 italic">All columns are visible.</p>
-                  )}
-                </ScrollArea>
-              </div>
-
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-base font-medium flex items-center gap-2"><Filter className="h-4 w-4" /> Filters</Label>
-              <Separator className="my-2" />
+            {/* Filters Section */}
+            <div className="space-y-4">
+              <Label className="text-sm font-semibold flex items-center gap-2"><Filter className="h-3 w-3" /> Filtros</Label>
+              <Separator className="my-1" />
 
-              {/* Date Range Filter */}
-              <div className='space-y-2 rounded-md border p-3'>
-                <Label>Date Filter</Label>
-                <p className="text-xs text-muted-foreground mb-2">Filtrar por: Schedule Date</p>
+              <div className='space-y-2 rounded-md border p-3 bg-muted/10'>
+                <Label className="text-xs">Por Fecha (Schedule Date)</Label>
                 <Select value={dateFilter} onValueChange={setDateFilter} disabled={!dateColumn}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select date filter" />
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Periodo..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Dates</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="due-soon-7">Due in next 7 days</SelectItem>
-                    <SelectItem value="current-month">Current Month</SelectItem>
+                    <SelectItem value="all">Ver Todas</SelectItem>
+                    <SelectItem value="overdue">Vencidas</SelectItem>
+                    <SelectItem value="due-soon-7">Próximos 7 días</SelectItem>
+                    <SelectItem value="current-month">Mes en curso</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* Constant Filters */}
-              <div className='space-y-2 rounded-md border p-3'>
+              <div className='space-y-2 rounded-md border p-3 bg-muted/10'>
                 <div className="flex items-center justify-between">
-                  <Label>Constant Values</Label>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={addConstantFilter} disabled={headers.length === 0}>
-                    <PlusCircle className="h-4 w-4" />
+                  <Label className="text-xs font-medium">Filtros de Texto</Label>
+                  <Button variant="ghost" size="icon" className="h-6 w-6" onClick={addConstantFilter} disabled={headers.length === 0}>
+                    <PlusCircle className="h-3.5 w-3.5" />
                   </Button>
                 </div>
-                {constantFilters.map((filter) => (
-                  <div key={filter.id} className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className={cn("h-8 w-8 shrink-0", filter.enabled === false ? "text-muted-foreground opacity-50" : "text-primary")}
-                      onClick={() => toggleConstantFilter(filter.id)}
-                      title={filter.enabled === false ? "Activar filtro" : "Desactivar filtro"}
-                    >
-                      {filter.enabled === false ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </Button>
-                    <Select value={filter.column} onValueChange={(val) => updateConstantFilter(filter.id, 'column', val)}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Column" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      placeholder="Value"
-                      value={filter.value}
-                      onChange={(e) => updateConstantFilter(filter.id, 'value', e.target.value)}
-                      className={cn("flex-1", filter.enabled === false && "opacity-50 line-through")}
-                    />
-                    <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeConstantFilter(filter.id)}>
-                      <MinusCircle className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))}
-                {constantFilters.length === 0 && <p className="text-sm text-muted-foreground text-center p-2">No constant filters added.</p>}
+                <div className="space-y-2">
+                  {constantFilters.map((filter) => (
+                    <div key={filter.id} className="flex items-center gap-1.5 bg-background p-1.5 rounded border border-transparent hover:border-border transition-colors">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className={cn("h-7 w-7 shrink-0", filter.enabled === false ? "text-muted-foreground opacity-30" : "text-primary")}
+                        onClick={() => toggleConstantFilter(filter.id)}
+                      >
+                        {filter.enabled === false ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                      </Button>
+                      <Select value={filter.column} onValueChange={(val) => updateConstantFilter(filter.id, 'column', val)}>
+                        <SelectTrigger className="flex-1 h-7 text-[10px]">
+                          <SelectValue placeholder="Col" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {headers.map(h => <SelectItem key={h} value={h} className="text-[10px]">{h}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        placeholder="Valor..."
+                        value={filter.value}
+                        onChange={(e) => updateConstantFilter(filter.id, 'value', e.target.value)}
+                        className={cn("flex-1 h-7 text-[10px]", filter.enabled === false && "opacity-30 line-through")}
+                      />
+                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeConstantFilter(filter.id)}>
+                        <MinusCircle className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                  {constantFilters.length === 0 && <p className="text-[10px] text-muted-foreground text-center py-2 italic font-light">Sin filtros activos.</p>}
+                </div>
               </div>
             </div>
           </CardContent>
