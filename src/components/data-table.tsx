@@ -425,12 +425,17 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                         {data && (
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" size="sm" onClick={handleDownloadReport} disabled={(data?.length ?? 0) === 0} title="Descargar Reporte Excel">
-                                    <Download className="mr-2 h-3 w-3 text-blue-600" />
+                                    <Download className="mr-2 h-3 w-3 text-emerald-600" />
                                     Descargar Reporte
                                 </Button>
-                                <Separator orientation="vertical" className="h-6 mx-1" />
+
+                                <Button variant="outline" size="sm" onClick={handleDownloadSerials} disabled={selectedRows.length === 0} title="Descargar Seriales Seleccionados">
+                                    <Download className="mr-2 h-3 w-3 text-blue-600" />
+                                    Download Serials
+                                </Button>
+
                                 <Button variant="outline" size="sm" onClick={handleCopySummary} title="Copiar Resumen">
-                                    <Copy className="mr-2 h-3 w-3" />
+                                    <Copy className="mr-2 h-3 w-3 text-orange-600" />
                                     Copiar Resumen
                                 </Button>
                             </div>
@@ -444,97 +449,37 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                         </div>
                     ) : (
                         <div className='space-y-4'>
-                            {/* Redundancy Alert Removed here */}
-                            {/* Compact Color Legend */}
-                            <div className="flex flex-wrap items-center gap-3 p-2 border rounded-md bg-muted/30 text-xs">
-                                <span className="font-medium text-muted-foreground">Leyenda:</span>
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-3 h-3 rounded-full bg-red-200 border border-red-400"></div>
-                                    <span>Vencido</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-3 h-3 rounded-full bg-orange-200 border border-orange-400"></div>
-                                    <span>3 días</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-3 h-3 rounded-full bg-yellow-100 border border-yellow-400"></div>
-                                    <span>7 días</span>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <div className="w-3 h-3 rounded-full bg-green-100 border border-green-400"></div>
-                                    <span>A tiempo</span>
-                                </div>
-                            </div>
-
-                            {/* File Management & Packing Data */}
-                            <div className="space-y-4">
-                                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-white p-4 rounded-lg border shadow-sm">
-                                    <div className="flex items-center gap-4 w-full sm:w-auto">
-                                        <div className="flex-1 sm:flex-none">
-                                            <h3 className="font-medium text-sm text-gray-900 border-b pb-1 mb-2">Main Data</h3>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-medium truncate max-w-[200px] !text-black opacity-100 z-10 relative" style={{ color: '#000000', visibility: 'visible' }} title={fileName}>
-                                                    {fileName}
-                                                </span>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                                                    onClick={onClear}
-                                                    title="Clear file"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
+                            {/* Analytics Legend & Search Bar */}
+                            <div className="flex flex-col md:flex-row justify-between items-center gap-4 bg-muted/20 p-3 rounded-lg border border-border/50">
+                                <div className="flex flex-wrap items-center gap-3 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-red-200 border border-red-400"></div>
+                                        <span>Vencido</span>
                                     </div>
-
-                                    <div className="flex items-center gap-4 w-full sm:w-auto border-t sm:border-t-0 sm:border-l pt-4 sm:pt-0 sm:pl-4">
-                                        <div className="flex-1 sm:flex-none">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <h3 className="font-medium text-sm text-gray-900 border-b pb-1">Packing Data</h3>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-6 px-2 text-xs text-muted-foreground hover:text-primary ml-2"
-                                                    onClick={handleDownloadTemplate}
-                                                    title="Download Template"
-                                                >
-                                                    <FileDown className="h-3 w-3 mr-1" />
-                                                    Template
-                                                </Button>
-                                            </div>
-                                            {/* Upload buttons moved to ConfigPanel */}
-                                        </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-orange-200 border border-orange-400"></div>
+                                        <span>3 días</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <div className="w-2.5 h-2.5 rounded-full bg-yellow-100 border border-yellow-400"></div>
+                                        <span>7 días</span>
                                     </div>
                                 </div>
 
-                                <div className="rounded-md border bg-white shadow-sm overflow-hidden">
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    <div className="relative flex-1 md:w-64">
+                                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                                         <Input
                                             type="text"
-                                            placeholder="Buscar en la tabla..."
+                                            placeholder="Buscar en resultados..."
                                             value={searchQuery}
                                             onChange={(e) => setSearchQuery(e.target.value)}
-                                            className="pl-10"
+                                            className="pl-9 h-8 text-xs bg-background"
                                         />
                                     </div>
-                                </div>
-                            </div>
-
-                            {/* Search Bar Removed (Duplicate) */}
-
-                            {/* Stats and Download Buttons */}
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                                <p className="text-sm text-muted-foreground w-full sm:w-auto text-center sm:text-left">
-                                    {sortedData?.length ?? 0} row{(sortedData?.length ?? 0) === 1 ? '' : 's'} found. {selectedRows.length > 0 && `(${selectedRows.length} selected)`}
-                                </p>
-                                <div className="flex flex-col w-full sm:w-auto sm:flex-row items-stretch sm:items-center gap-2">
-                                    <Button onClick={handleDownloadSerials} variant="secondary" size="sm" disabled={selectedRows.length === 0} className="w-full sm:w-auto">
-                                        <Download className="mr-2 h-3 w-3" />
-                                        Download Selected Serials
-                                    </Button>
+                                    <div className="text-[11px] font-bold bg-background border px-2 py-1 rounded shadow-sm whitespace-nowrap">
+                                        {sortedData?.length ?? 0} ITEMS {selectedRows.length > 0 && <span className="text-primary">({selectedRows.length} SEL)</span>}
+                                    </div>
                                 </div>
                             </div>
 

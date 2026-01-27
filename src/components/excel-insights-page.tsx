@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import AppHeader from '@/components/app-header';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { FileUpload } from '@/components/file-upload';
@@ -14,9 +14,14 @@ import { dbService } from '@/lib/db-service';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { read, utils } from 'xlsx';
-import { startOfToday, isValid, addDays, startOfMonth, endOfMonth } from 'date-fns';
+import { startOfToday, isValid, addDays, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 
 export type ConstantFilter = { id: string; column: string; value: string; enabled?: boolean };
+
+const STORAGE_KEYS = {
+  FILTERS: 'prod-extractor-filters',
+  COLUMNS: 'prod-extractor-columns'
+};
 
 export default function ExcelInsightsPage() {
   const { toast } = useToast();
@@ -46,6 +51,23 @@ export default function ExcelInsightsPage() {
   const [filteredData, setFilteredData] = useState<any[] | null>(null);
   const [dataForSummaries, setDataForSummaries] = useState<any[] | null>(null);
 
+  // --- Persistence Persistence (Local) ---
+  useEffect(() => {
+    const savedFilters = localStorage.getItem(STORAGE_KEYS.FILTERS);
+    const savedCols = localStorage.getItem(STORAGE_KEYS.COLUMNS);
+    if (savedFilters) setConstantFilters(JSON.parse(savedFilters));
+    if (savedCols) setSelectedColumns(JSON.parse(savedCols));
+  }, []);
+
+  useEffect(() => {
+    if (constantFilters.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.FILTERS, JSON.stringify(constantFilters));
+    }
+    if (selectedColumns.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.COLUMNS, JSON.stringify(selectedColumns));
+    }
+  }, [constantFilters, selectedColumns]);
+
   const handleFile = useCallback((selectedFile: File) => {
     setIsLoading(true);
     setFile(selectedFile);
@@ -60,15 +82,23 @@ export default function ExcelInsightsPage() {
       if (data.length > 0) {
         const cols = Object.keys(data[0] as object);
         setHeaders(cols);
-        setSelectedColumns(cols.slice(0, 10)); // Default first 10
+
+        // Only override selected columns if not already persisted
+        if (selectedColumns.length === 0) {
+          setSelectedColumns(cols.slice(0, 10));
+        }
+
         // Auto-detect date column
-        const dateCol = cols.find(c => c.toLowerCase().includes('date') || c.toLowerCase().includes('fecha') || c.toLowerCase().includes('schedule'));
+        const dateCol = cols.find(c => {
+          const lowC = c.toLowerCase();
+          return lowC.includes('date') || lowC.includes('fecha') || lowC.includes('schedule');
+        });
         if (dateCol) setDateColumn(dateCol);
       }
       setIsLoading(false);
     };
     reader.readAsBinaryString(selectedFile);
-  }, []);
+  }, [selectedColumns]);
 
   const resetFileUpload = useCallback(() => {
     setFile(null);
@@ -80,6 +110,8 @@ export default function ExcelInsightsPage() {
     setDataForSummaries(null);
     setPersistedFileName(null);
     setFileKey(prev => prev + 1);
+    localStorage.removeItem(STORAGE_KEYS.FILTERS);
+    localStorage.removeItem(STORAGE_KEYS.COLUMNS);
   }, []);
 
   const handlePackingFile = useCallback((selectedFile: File) => {
@@ -193,7 +225,14 @@ export default function ExcelInsightsPage() {
     if (dateFilter && dateFilter !== 'all' && dateColumn) {
       const today = startOfToday();
       dataAfterDateFilters = dataAfterDateFilters.filter(row => {
-        const itemDate = row[dateColumn];
+        let itemDate = row[dateColumn];
+
+        // Coerce to Date if it's a string or number
+        if (itemDate && !(itemDate instanceof Date)) {
+          const parsed = new Date(itemDate);
+          if (isValid(parsed)) itemDate = parsed;
+        }
+
         if (!(itemDate instanceof Date) || !isValid(itemDate)) return false;
 
         switch (dateFilter) {
@@ -245,9 +284,8 @@ export default function ExcelInsightsPage() {
               <div className="mt-4 p-4 border rounded-md bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
                 <div className="flex items-center gap-2 mb-2">
                   <Globe className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Colaboración en Tiempo Real</span>
+                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Nube</span>
                 </div>
-                <p className="text-[10px] text-blue-600 dark:text-blue-400 mb-3">Sincroniza tus datos para que otros puedan ver este reporte.</p>
                 <Button
                   variant="outline"
                   size="sm"
@@ -256,24 +294,22 @@ export default function ExcelInsightsPage() {
                   disabled={isSyncing || !fileData}
                 >
                   {isSyncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CloudUpload className="h-3 w-3 mr-1" />}
-                  Subir a la nube
+                  Sincronizar
                 </Button>
               </div>
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
               {!fileData ? (
-                <div className="flex flex-col items-center justify-center h-[65vh] border-2 border-dashed rounded-xl bg-muted/20 text-muted-foreground/60 transition-all">
-                  <TableIcon className="h-20 w-20 mb-6 opacity-10" />
-                  <h3 className="text-xl font-semibold text-foreground/70">Esperando datos de producción</h3>
-                  <p className="max-w-xs text-center text-sm mt-2 font-light">
-                    Sube tu archivo principal desde el panel de configuración a la izquierda para comenzar.
-                  </p>
-                  <div className="mt-8 pt-6 border-t w-48 text-center animate-pulse">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] mb-4">Opciones de Red</p>
-                    <Button variant="outline" size="sm" onClick={loadFromCloud} className="w-full">
-                      <CloudDownload className="mr-2 h-4 w-4 text-blue-500" />
-                      Cargar de la Nube
-                    </Button>
+                <div className="flex flex-col items-center justify-center p-8 bg-card rounded-xl border-2 border-dashed h-full min-h-[60vh] transition-all hover:bg-muted/5">
+                  <FileUpload onFileSelect={handleFile} />
+                  <div className="mt-12 flex flex-col items-center gap-4 border-t pt-8 w-full max-w-md opacity-60">
+                    <span className="text-[10px] uppercase font-bold tracking-[0.2em]">Opciones Rápidas</span>
+                    <div className="flex gap-4">
+                      <Button variant="outline" size="sm" onClick={loadFromCloud}>
+                        <CloudDownload className="mr-2 h-4 w-4 text-blue-500" />
+                        De la Nube
+                      </Button>
+                    </div>
                   </div>
                 </div>
               ) : (

@@ -292,87 +292,51 @@ export function ConfigPanel({
               </div>
             </div>
 
-            {/* Centralized Upload Tools Section */}
-            <div className="space-y-4 p-3 border rounded-md bg-muted/30">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground inline-block bg-background px-1 -mt-5">Archivos y Datos</Label>
-
-              <div className="space-y-3">
-                {/* Main File Segment */}
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] text-muted-foreground uppercase font-semibold pl-1">Producción Principal</Label>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    <Button variant="default" size="sm" className="h-9 justify-start text-[11px] relative overflow-hidden shadow-sm" asChild>
-                      <label className="cursor-pointer">
-                        <FileUp className="mr-2 h-3.5 w-3.5" />
-                        {fileName === 'Unknown file' ? "Cargar Reporte" : "Cambiar Reporte Principal"}
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".xlsx, .xls"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) onMainFileSelect(f);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 justify-start text-[11px] text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={onClear}
-                      disabled={fileName === 'Unknown file'}
-                    >
-                      <Trash className="mr-2 h-3.5 w-3.5" />
-                      Borrar Reporte Actual
-                    </Button>
-                  </div>
-                </div>
-
-                <Separator className="opacity-50" />
-
-                {/* Packing File Segment */}
-                <div className="space-y-1.5">
-                  <Label className="text-[9px] text-muted-foreground uppercase font-semibold pl-1">Datos de Empaque (Opcional)</Label>
-                  <div className="grid grid-cols-1 gap-1.5">
-                    <Button variant="outline" size="sm" className="h-8 justify-start text-[11px] relative overflow-hidden hover:bg-blue-50 dark:hover:bg-blue-900/10" asChild>
-                      <label className="cursor-pointer">
-                        <FileUp className="mr-2 h-3.5 w-3.5 text-blue-500" />
-                        Subir Datos de Empaque
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".xlsx, .xls"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) onPackingFileSelect(f);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-8 justify-start text-[11px] border-green-200/50 bg-green-50/20 hover:bg-green-100 dark:bg-green-900/10 dark:hover:bg-green-900/20"
-                      asChild
-                    >
-                      <a href="#" onClick={(e) => {
-                        e.preventDefault();
-                        const xlsx = require('xlsx');
-                        const ws = xlsx.utils.aoa_to_sheet([["Linea", "Seriales", "Packed Date"]]);
-                        const wb = xlsx.utils.book_new();
-                        xlsx.utils.book_append_sheet(wb, ws, "Template");
-                        xlsx.writeFile(wb, "packing_template.xlsx");
-                      }} >
-                        <FileDown className="mr-2 h-3.5 w-3.5 text-green-600" />
-                        Descargar Plantilla
-                      </a>
-                    </Button>
-                  </div>
-                </div>
+            {/* Quick Actions (Utility) */}
+            <div className="space-y-3">
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <FileUp className="h-3 w-3" /> Acciones Rápidas
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="outline" size="sm" className="h-8 text-[11px] justify-start px-2 bg-muted/20" asChild title="Subir reporte de empaque">
+                  <label className="cursor-pointer">
+                    <FileUp className="mr-1.5 h-3.5 w-3.5 text-blue-500" />
+                    Empaque
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".xlsx, .xls"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) onPackingFileSelect(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-[11px] justify-start px-2 text-destructive hover:bg-destructive/10"
+                  onClick={onClear}
+                  disabled={fileName === 'Unknown file'}
+                >
+                  <Trash className="mr-1.5 h-3.5 w-3.5" />
+                  Limpiar
+                </Button>
               </div>
+              <Button variant="link" size="sm" className="h-6 p-0 text-[10px] text-muted-foreground hover:text-primary underline-offset-4" asChild>
+                <a href="#" onClick={(e) => {
+                  e.preventDefault();
+                  const xlsx = require('xlsx');
+                  const ws = xlsx.utils.aoa_to_sheet([["Linea", "Seriales", "Packed Date"]]);
+                  const wb = xlsx.utils.book_new();
+                  xlsx.utils.book_append_sheet(wb, ws, "Template");
+                  xlsx.writeFile(wb, "packing_template.xlsx");
+                }}>
+                  <FileDown className="h-3 w-3 mr-1" /> Descargar Plantilla Empaque
+                </a>
+              </Button>
             </div>
 
             {/* Columns Layout Section */}
