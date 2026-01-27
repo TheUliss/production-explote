@@ -223,39 +223,46 @@ export default function ExcelInsightsPage() {
 
     let dataAfterDateFilters = [...dataAfterConstantFilters];
     if (dateFilter && dateFilter !== 'all' && dateColumn) {
-      const today = startOfToday();
+      // Normalize today to UTC midnight for comparison
+      const now = new Date();
+      const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+
       dataAfterDateFilters = dataAfterDateFilters.filter(row => {
         let val = row[dateColumn];
-        if (!val) return false;
+        if (val === undefined || val === null || val === '') return false;
 
         let itemDate: Date | null = null;
         if (val instanceof Date) {
           itemDate = val;
         } else if (typeof val === 'number') {
-          // Robust Excel Serial to JS Date
+          // Robust Excel Serial: Ignore numbers that are definitely not dates (e.g., Qty, Line)
+          // 40000 is approx July 2009. Production data is usually recent (45000+).
+          // If the number is too small, it's probably not a date.
+          if (val < 30000) return false;
           itemDate = new Date(Math.round((val - 25569) * 86400 * 1000));
         } else {
-          // Try standard parsing for strings
           const parsed = new Date(val);
           if (isValid(parsed)) itemDate = parsed;
         }
 
         if (!itemDate || !isValid(itemDate)) return false;
 
-        // Clean comparison by normalizing to start of day
-        const currentItemDate = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
+        // Use UTC components to avoid timezone shifts (Excel dates are typically date-only)
+        const itemUTC = Date.UTC(itemDate.getUTCFullYear(), itemDate.getUTCMonth(), itemDate.getUTCDate());
 
         switch (dateFilter) {
           case 'overdue':
-            return currentItemDate < today;
+            return itemUTC < todayUTC;
           case 'due-soon-7': {
-            const aWeekFromNow = addDays(today, 7);
-            return currentItemDate >= today && currentItemDate <= aWeekFromNow;
+            const sevenDaysInMs = 7 * 24 * 60 * 60 * 1000;
+            return itemUTC >= todayUTC && itemUTC <= (todayUTC + sevenDaysInMs);
           }
           case 'current-month': {
-            const start = startOfMonth(today);
-            const end = endOfMonth(today);
-            return currentItemDate >= start && currentItemDate <= end;
+            const itemMonth = new Date(itemUTC).getUTCMonth();
+            const itemYear = new Date(itemUTC).getUTCFullYear();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            return itemMonth === currentMonth && itemYear === currentYear;
           }
           default: return true;
         }

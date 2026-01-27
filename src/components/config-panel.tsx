@@ -406,19 +406,33 @@ export function ConfigPanel({
               <Label className="text-sm font-semibold flex items-center gap-2"><Filter className="h-3 w-3" /> Filtros</Label>
               <Separator className="my-1" />
 
-              <div className='space-y-2 rounded-md border p-3 bg-muted/10'>
-                <Label className="text-xs">Por Fecha (Schedule Date)</Label>
-                <Select value={dateFilter} onValueChange={setDateFilter} disabled={!dateColumn}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Periodo..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Ver Todas</SelectItem>
-                    <SelectItem value="overdue">Vencidas</SelectItem>
-                    <SelectItem value="due-soon-7">Próximos 7 días</SelectItem>
-                    <SelectItem value="current-month">Mes en curso</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className='space-y-3 rounded-md border p-3 bg-muted/10'>
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground uppercase font-bold">Columna de Fecha</Label>
+                  <Select value={dateColumn} onValueChange={setDateColumn}>
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Seleccionar columna..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {headers.map(h => <SelectItem key={h} value={h} className="text-xs">{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground uppercase font-bold">Rango de Producción</Label>
+                  <Select value={dateFilter} onValueChange={setDateFilter} disabled={!dateColumn}>
+                    <SelectTrigger className="h-8 text-xs bg-background">
+                      <SelectValue placeholder="Periodo..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Ver Todas</SelectItem>
+                      <SelectItem value="overdue">Vencidas</SelectItem>
+                      <SelectItem value="due-soon-7">Próximos 7 días</SelectItem>
+                      <SelectItem value="current-month">Mes en curso</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className='space-y-2 rounded-md border p-3 bg-muted/10'>
