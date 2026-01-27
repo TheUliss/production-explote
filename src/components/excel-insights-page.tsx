@@ -12,7 +12,6 @@ import { DataTable } from '@/components/data-table';
 import { Loader2, BarChart3, ChevronUp, ChevronDown, CloudUpload, CloudDownload, Users, Globe, FileUp, TableIcon } from 'lucide-react';
 import { dbService } from '@/lib/db-service';
 import { Card } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { read, utils } from 'xlsx';
 import { startOfToday, isValid, addDays, startOfMonth, endOfMonth } from 'date-fns';
