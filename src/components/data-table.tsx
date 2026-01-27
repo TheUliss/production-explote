@@ -423,7 +423,11 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                         </div>
                         {data && (
                             <div className="flex items-center gap-2">
-                                {/* Detailed Summary Copy Button */}
+                                <Button variant="outline" size="sm" onClick={handleDownloadReport} disabled={(data?.length ?? 0) === 0} title="Descargar Reporte Excel">
+                                    <Download className="mr-2 h-3 w-3 text-blue-600" />
+                                    Descargar Reporte
+                                </Button>
+                                <Separator orientation="vertical" className="h-6 mx-1" />
                                 <Button variant="outline" size="sm" onClick={handleCopySummary} title="Copiar Resumen">
                                     <Copy className="mr-2 h-3 w-3" />
                                     Copiar Resumen
@@ -526,13 +530,9 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                     {sortedData?.length ?? 0} row{(sortedData?.length ?? 0) === 1 ? '' : 's'} found. {selectedRows.length > 0 && `(${selectedRows.length} selected)`}
                                 </p>
                                 <div className="flex flex-col w-full sm:w-auto sm:flex-row items-stretch sm:items-center gap-2">
-                                    <Button onClick={handleDownloadReport} disabled={(sortedData?.length ?? 0) === 0 || orderedVisibleColumns.length === 0} className="w-full sm:w-auto">
-                                        <Download className="mr-2 h-4 w-4" />
-                                        Download Report
-                                    </Button>
-                                    <Button onClick={handleDownloadSerials} variant="secondary" disabled={selectedRows.length === 0} className="w-full sm:w-auto">
-                                        <Download className="mr-2 h-4 w-4" />
-                                        Download Serials
+                                    <Button onClick={handleDownloadSerials} variant="secondary" size="sm" disabled={selectedRows.length === 0} className="w-full sm:w-auto">
+                                        <Download className="mr-2 h-3 w-3" />
+                                        Download Selected Serials
                                     </Button>
                                 </div>
                             </div>

@@ -100,7 +100,7 @@ export const dbService = {
     },
 
     // Save full project data for collaboration
-    async saveProjectData(fileName: string, data: any[], selectedColumns: string[]) {
+    async saveProjectData(fileName: string, data: any[], config: any, packedSerials?: any[]) {
         if (!isCloudEnabled()) throw new Error("Cloud Sync requires Firebase configuration.");
         try {
             const id = "current-project";
@@ -108,7 +108,8 @@ export const dbService = {
             await setDoc(projectRef, {
                 fileName,
                 data,
-                selectedColumns,
+                config,
+                packedSerials: packedSerials || [],
                 updatedAt: Timestamp.now()
             });
             return id;
