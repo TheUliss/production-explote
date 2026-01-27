@@ -21,11 +21,12 @@ import { format, addDays, startOfToday, isWithinInterval } from "date-fns"
 
 interface AnalyticsDashboardProps {
     data: any[]
+    packedSerials: Map<string, Date>
 }
 
 const COLORS = ["#3b82f6", "#ef4444", "#f59e0b", "#10b981", "#8b5cf6", "#f472b6"]
 
-export function AnalyticsDashboard({ data }: AnalyticsDashboardProps) {
+export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardProps) {
     const chartData = React.useMemo(() => {
         if (!data || data.length === 0) return { groupData: [], statusData: [], dailyVolume: [] }
 
@@ -59,24 +60,38 @@ export function AnalyticsDashboard({ data }: AnalyticsDashboardProps) {
         ]
 
         // 3. Daily Volume (Area Chart: Next 10 days)
-        const daily: Record<string, number> = {}
+        const daily: Record<string, { qty: number, packed: number }> = {}
         for (let i = -2; i < 10; i++) {
             const d = addDays(today, i)
-            daily[format(d, "MMM dd")] = 0
+            daily[format(d, "MMM dd")] = { qty: 0, packed: 0 }
         }
 
+        // Calculate Job Volume
         data.forEach(row => {
             const date = row['Schedule Date']
             if (!(date instanceof Date)) return
             const key = format(date, "MMM dd")
             if (daily[key] !== undefined) {
-                daily[key] += parseInt(row['Qty Ordered'] || '0', 10) || 0
+                daily[key].qty += parseInt(row['Qty Ordered'] || '0', 10) || 0
             }
         })
-        const dailyVolume = Object.entries(daily).map(([name, qty]) => ({ name, qty }))
+
+        // Calculate Packed Volume (from packing template dates)
+        packedSerials.forEach((packedDate) => {
+            const key = format(packedDate, "MMM dd")
+            if (daily[key] !== undefined) {
+                daily[key].packed += 1
+            }
+        })
+
+        const dailyVolume = Object.entries(daily).map(([name, vals]) => ({
+            name,
+            qty: vals.qty,
+            packed: vals.packed
+        }))
 
         return { groupData, statusData, dailyVolume }
-    }, [data])
+    }, [data, packedSerials])
 
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
@@ -84,7 +99,7 @@ export function AnalyticsDashboard({ data }: AnalyticsDashboardProps) {
             <Card className="lg:col-span-2">
                 <CardHeader>
                     <CardTitle className="text-sm font-medium">Volumen de Producción (Piezas x Día)</CardTitle>
-                    <CardDescription>Carga de trabajo para los próximos 10 días</CardDescription>
+                    <CardDescription>Comparativa entre Carga Programada vs Empacado Real (últimos 2 días y próximos 10)</CardDescription>
                 </CardHeader>
                 <CardContent className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -94,12 +109,18 @@ export function AnalyticsDashboard({ data }: AnalyticsDashboardProps) {
                                     <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
                                     <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                                 </linearGradient>
+                                <linearGradient id="colorPacked" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.8} />
+                                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                                </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} />
                             <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
                             <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
                             <Tooltip />
-                            <Area type="monotone" dataKey="qty" stroke="#3b82f6" fillOpacity={1} fill="url(#colorQty)" />
+                            <Legend verticalAlign="top" height={36} />
+                            <Area type="monotone" name="Programado" dataKey="qty" stroke="#3b82f6" fillOpacity={1} fill="url(#colorQty)" />
+                            <Area type="monotone" name="Empacado" dataKey="packed" stroke="#22c55e" fillOpacity={1} fill="url(#colorPacked)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </CardContent>

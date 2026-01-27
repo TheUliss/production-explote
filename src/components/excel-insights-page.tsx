@@ -59,7 +59,7 @@ export default function ExcelInsightsPage() {
   const [fileKey, setFileKey] = React.useState(0);
   const [filteredData, setFilteredData] = React.useState<any[] | null>(null);
   const [dataForSummaries, setDataForSummaries] = React.useState<any[] | null>(null);
-  const [packedSerials, setPackedSerials] = React.useState<Set<string>>(new Set());
+  const [packedSerials, setPackedSerials] = React.useState<Map<string, Date>>(new Map());
   const [isLoading, setIsLoading] = React.useState(false);
   const [showAnalytics, setShowAnalytics] = React.useState(true);
   const [isSyncing, setIsSyncing] = React.useState(false);
@@ -97,7 +97,7 @@ export default function ExcelInsightsPage() {
     setHeaders([]);
     setFilteredData(null);
     setDataForSummaries(null);
-    setPackedSerials(new Set());
+    setPackedSerials(new Map());
     setFileKey(prev => prev + 1);
     // Clear persisted data
     setPersistedFileData(null);
@@ -268,7 +268,7 @@ export default function ExcelInsightsPage() {
     reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = xlsx.read(data, { type: 'array' });
+        const workbook = xlsx.read(data, { type: 'array', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const json: any[][] = xlsx.utils.sheet_to_json(worksheet, { header: 1, defval: '' });
@@ -279,17 +279,22 @@ export default function ExcelInsightsPage() {
 
         const headers = json[0].map(h => h?.toString().trim());
         const serialsColIndex = headers.findIndex(h => h === 'Seriales');
+        const dateColIndex = headers.findIndex(h => h === 'Packed Date');
 
         if (serialsColIndex === -1) {
           throw new Error('No se encontró la columna "Seriales" en el archivo de empaque.');
         }
 
-        const loadedSerials = new Set<string>();
+        const loadedSerials = new Map<string, Date>();
         // Start from 1 to skip header row
         for (let i = 1; i < json.length; i++) {
           const serial = json[i][serialsColIndex]?.toString().trim();
+          let packedDate = json[i][dateColIndex];
+
           if (serial) {
-            loadedSerials.add(serial);
+            // Ensure we have a valid Date object if the column exists
+            const dateObj = packedDate instanceof Date && isValid(packedDate) ? packedDate : new Date();
+            loadedSerials.set(serial, dateObj);
           }
         }
 
@@ -306,7 +311,7 @@ export default function ExcelInsightsPage() {
           title: 'Error al leer archivo de empaque',
           description: error instanceof Error ? error.message : 'No se pudo procesar el archivo de empaque.',
         });
-        setPackedSerials(new Set()); // Reset on error
+        setPackedSerials(new Map()); // Reset on error
       }
     };
     reader.onerror = () => {
@@ -315,7 +320,7 @@ export default function ExcelInsightsPage() {
         title: 'Error de lectura',
         description: 'Ocurrió un error al leer el archivo de empaque.',
       });
-      setPackedSerials(new Set());
+      setPackedSerials(new Map());
     };
     reader.readAsArrayBuffer(packingFile);
   };
@@ -465,7 +470,7 @@ export default function ExcelInsightsPage() {
                 </Button>
               </div>
 
-              {showAnalytics && <AnalyticsDashboard data={filteredData || []} />}
+              {showAnalytics && <AnalyticsDashboard data={filteredData || []} packedSerials={packedSerials} />}
 
               <DataTable
                 data={filteredData}
@@ -473,7 +478,7 @@ export default function ExcelInsightsPage() {
                 visibleColumns={selectedColumns}
                 originalData={fileData}
                 dataForSummaries={dataForSummaries}
-                packedSerials={packedSerials}
+                packedSerials={new Set(packedSerials.keys())}
                 onPackingFileSelect={handlePackingFile}
                 onClear={resetFileUpload}
                 fileName={file?.name ?? persistedFileName ?? 'Unknown file'}
