@@ -9,9 +9,12 @@ import { addDays, endOfMonth, startOfMonth, startOfToday, isValid, parseISO } fr
 import AppHeader from '@/components/app-header';
 import { FileUpload } from '@/components/file-upload';
 import { ConfigPanel } from '@/components/config-panel';
-import { DataTable } from '@/components/data-table';
-import { Loader2 } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { AnalyticsDashboard } from '@/components/analytics-dashboard';
+import { Button } from '@/components/ui/button';
+import { DataTable } from '@/components/data-table';
+import { Loader2, BarChart3, ChevronUp, ChevronDown, CloudUpload, CloudDownload, Users, Globe } from 'lucide-react';
+import { dbService } from '@/lib/db-service';
 
 
 export type ConstantFilter = { id: string; column: string; value: string; enabled?: boolean };
@@ -58,6 +61,8 @@ export default function ExcelInsightsPage() {
   const [dataForSummaries, setDataForSummaries] = React.useState<any[] | null>(null);
   const [packedSerials, setPackedSerials] = React.useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = React.useState(false);
+  const [showAnalytics, setShowAnalytics] = React.useState(true);
+  const [isSyncing, setIsSyncing] = React.useState(false);
 
   // Persistent State
   const [selectedColumns, setSelectedColumns] = useLocalStorage<string[]>('excel-insights-selectedColumns', []);
@@ -98,6 +103,38 @@ export default function ExcelInsightsPage() {
     setPersistedFileData(null);
     setPersistedHeaders([]);
     setPersistedFileName('');
+  };
+
+  const handleCloudSync = async () => {
+    if (!fileData) return;
+    setIsSyncing(true);
+    try {
+      await dbService.saveProjectData(file?.name || persistedFileName, fileData, selectedColumns);
+      toast({ title: "Sincronizado", description: "Los datos están ahora en la nube para colaboración." });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error de Sincronización", description: "Verifica tu configuración de Firebase." });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const loadFromCloud = async () => {
+    setIsLoading(true);
+    try {
+      const cloudData = await dbService.getProjectData();
+      if (cloudData) {
+        const deserializedData = deserializeData(cloudData.data);
+        setFileData(deserializedData);
+        setHeaders(cloudData.selectedColumns); // or re-extract all from data
+        setSelectedColumns(cloudData.selectedColumns);
+        setPersistedFileName(cloudData.fileName);
+        toast({ title: "Cargado desde la nube", description: `Archivo: ${cloudData.fileName}` });
+      } else {
+        toast({ title: "No hay datos", description: "No se encontró ningún proyecto compartido en la nube." });
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleFile = (uploadedFile: File) => {
@@ -371,7 +408,16 @@ export default function ExcelInsightsPage() {
             <p className="text-lg text-muted-foreground">Procesando archivo...</p>
           </div>
         ) : !fileData ? (
-          <FileUpload onFileSelect={handleFile} key={fileKey} />
+          <div className="space-y-6">
+            <FileUpload onFileSelect={handleFile} key={fileKey} />
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-xs text-muted-foreground">O también puedes</span>
+              <Button variant="outline" size="sm" onClick={loadFromCloud}>
+                <CloudDownload className="mr-2 h-4 w-4 text-blue-500" />
+                Cargar último proyecto compartido (Cloud)
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-8">
             <div className="lg:col-span-4 xl:col-span-3">
@@ -387,8 +433,40 @@ export default function ExcelInsightsPage() {
                 constantFilters={constantFilters}
                 setConstantFilters={setConstantFilters}
               />
+              <div className="mt-4 p-4 border rounded-md bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-2">
+                  <Globe className="h-4 w-4 text-blue-600" />
+                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Colaboración en Tiempo Real</span>
+                </div>
+                <p className="text-[10px] text-blue-600 dark:text-blue-400 mb-3">Sincroniza tus datos para que otros miembros del equipo puedan ver este reporte.</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full bg-white dark:bg-background h-8 text-xs border-blue-200"
+                  onClick={handleCloudSync}
+                  disabled={isSyncing}
+                >
+                  {isSyncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CloudUpload className="h-3 w-3 mr-1" />}
+                  Subir a la nube
+                </Button>
+              </div>
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
+              {/* Analytics Dashboard Toggle */}
+              <div className="mb-4 flex justify-between items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowAnalytics(!showAnalytics)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {showAnalytics ? <ChevronUp className="mr-2 h-4 w-4" /> : <BarChart3 className="mr-2 h-4 w-4" />}
+                  {showAnalytics ? "Ocultar Análisis" : "Mostrar Análisis de Producción"}
+                </Button>
+              </div>
+
+              {showAnalytics && <AnalyticsDashboard data={filteredData || []} />}
+
               <DataTable
                 data={filteredData}
                 headers={headers}

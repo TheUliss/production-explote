@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
-import { AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Download, Search, TableIcon, Trash2, Upload, FileUp, FileDown, Copy, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Download, Search, TableIcon, Trash2, Upload, FileUp, FileDown, Copy, CheckCircle2, Clock, AlertCircle, Zap } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { downloadReport } from '@/lib/xlsx-utils';
 import { ScrollArea, ScrollBar } from './ui/scroll-area';
@@ -259,6 +259,28 @@ export function DataTable({
         if (isDueSoon3) return "bg-orange-100 hover:bg-orange-200 data-[state=selected]:bg-orange-300";
         if (isDueSoon7) return "bg-yellow-50 hover:bg-yellow-100 data-[state=selected]:bg-yellow-200";
         return "bg-green-50 hover:bg-green-100 data-[state=selected]:bg-green-200";
+    };
+
+    // --- Risk Prediction Logic ---
+    const getRiskInfo = (row: any) => {
+        const date = row['Schedule Date'];
+        const qty = parseInt(row['Qty Ordered'] || '0', 10);
+        if (!date || !(date instanceof Date) || isNaN(qty) || qty === 0) return null;
+
+        const now = new Date();
+        const diffTime = date.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        // Critical if: Already overdue
+        if (date < today) return { label: 'Crítico', icon: <Zap className="h-4 text-red-600 animate-pulse" />, color: 'text-red-600' };
+
+        const piecesPerDay = diffDays > 0 ? qty / diffDays : qty;
+        // High Risk threshold: more than 250 pieces per day remaining or very close deadline with high qty
+        if (piecesPerDay > 250 || (diffDays <= 2 && qty > 100)) {
+            return { label: 'Riesgo Alto', icon: <AlertTriangle className="h-4 text-orange-500" />, color: 'text-orange-500' };
+        }
+
+        return null;
     };
 
     const handleDownloadTemplate = () => {
@@ -552,6 +574,7 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                     aria-label="Select all rows"
                                                 />
                                             </TableHead>
+                                            <TableHead className="w-10 px-0" title="Riesgo de Atraso">Risk</TableHead>
                                             {orderedVisibleColumns.map((header) => (
                                                 <TableHead
                                                     key={header}
@@ -589,6 +612,9 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                             onCheckedChange={() => handleRowSelect(actualIndex)}
                                                             aria-label={`Select row ${actualIndex + 1}`}
                                                         />
+                                                    </TableCell>
+                                                    <TableCell className="px-1 text-center">
+                                                        {getRiskInfo(row)?.icon}
                                                     </TableCell>
                                                     {orderedVisibleColumns.map((header) => (
                                                         <TableCell key={header}>

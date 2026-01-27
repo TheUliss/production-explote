@@ -13,6 +13,9 @@ import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, Gri
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
+import { dbService, type ViewProfile } from '@/lib/db-service';
+import { Save, FolderOpen, Trash2, Loader2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import {
   DndContext,
   closestCenter,
@@ -97,6 +100,58 @@ export function ConfigPanel({
   const [isOpen, setIsOpen] = React.useState(true);
   const [activeId, setActiveId] = React.useState<string | null>(null);
 
+  // Profile State
+  const [profiles, setProfiles] = React.useState<ViewProfile[]>([]);
+  const [newProfileName, setNewProfileName] = React.useState('');
+  const [isSaving, setIsSaving] = React.useState(false);
+  const [isLoadingProfiles, setIsLoadingProfiles] = React.useState(false);
+
+  const { toast } = useToast();
+
+  const loadProfiles = async () => {
+    setIsLoadingProfiles(true);
+    try {
+      const data = await dbService.getProfiles();
+      setProfiles(data);
+    } finally {
+      setIsLoadingProfiles(false);
+    }
+  };
+
+  React.useEffect(() => {
+    loadProfiles();
+  }, []);
+
+  const handleSaveProfile = async () => {
+    if (!newProfileName.trim()) return;
+    setIsSaving(true);
+    try {
+      await dbService.saveProfile(newProfileName, selectedColumns);
+      setNewProfileName('');
+      await loadProfiles();
+      toast({ title: "Perfil guardado", description: `El perfil "${newProfileName}" se guardó correctamente.` });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el perfil. Verifica la configuración de Firebase." });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const applyProfile = (profile: ViewProfile) => {
+    setSelectedColumns(profile.selectedColumns);
+    toast({ title: "Perfil aplicado", description: `Se cargó la vista "${profile.name}".` });
+  };
+
+  const deleteProfile = async (id: string) => {
+    try {
+      await dbService.deleteProfile(id);
+      await loadProfiles();
+      toast({ title: "Perfil eliminado" });
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudo eliminar el perfil." });
+    }
+  };
+
   React.useEffect(() => {
     // Default closed on mobile, open on desktop
     setIsOpen(!isMobile);
@@ -179,6 +234,45 @@ export function ConfigPanel({
 
         <CollapsibleContent>
           <CardContent className="space-y-6 pt-0">
+            {/* View Profiles Section */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium flex items-center gap-2"><Save className="h-4 w-4" /> Perfiles de Vista</Label>
+              <Separator className="my-1" />
+
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Nombre del perfil..."
+                  value={newProfileName}
+                  onChange={(e) => setNewProfileName(e.target.value)}
+                  className="h-8 text-xs"
+                />
+                <Button size="sm" className="h-8" onClick={handleSaveProfile} disabled={isSaving || !newProfileName}>
+                  {isSaving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3 mr-1" />}
+                  Guardar
+                </Button>
+              </div>
+
+              <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                {isLoadingProfiles ? (
+                  <div className="flex justify-center p-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                ) : profiles.length > 0 ? profiles.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between group p-1.5 rounded-md hover:bg-muted/50 border border-transparent hover:border-border transition-all">
+                    <button
+                      className="text-xs font-medium flex items-center gap-2 truncate text-left flex-1"
+                      onClick={() => applyProfile(p)}
+                    >
+                      <FolderOpen className="h-3 w-3 text-blue-500" />
+                      {p.name}
+                    </button>
+                    <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100" onClick={() => deleteProfile(p.id)}>
+                      <Trash2 className="h-3 w-3 text-destructive" />
+                    </Button>
+                  </div>
+                )) : (
+                  <p className="text-[10px] text-muted-foreground text-center py-2 italic font-light italic">No hay perfiles guardados.</p>
+                )}
+              </div>
+            </div>
             <div>
               <Label className="text-base font-medium flex items-center gap-2"><Columns className="h-4 w-4" /> Columns (Drag & Drop)</Label>
               <Separator className="my-2" />
