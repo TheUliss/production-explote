@@ -10,6 +10,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Button } from './ui/button';
+import { Separator } from './ui/separator';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Download, Search, TableIcon, Trash2, Upload, FileUp, FileDown, Copy, CheckCircle2, Clock, AlertCircle, Zap } from 'lucide-react';
 import * as xlsx from 'xlsx';
