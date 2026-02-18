@@ -18,9 +18,10 @@ import {
 } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { format, addDays, startOfToday, isWithinInterval } from "date-fns"
+import type { ProductionRow } from "@/lib/types"
 
 interface AnalyticsDashboardProps {
-    data: any[]
+    data: ProductionRow[]
     packedSerials: Map<string, Date>
 }
 
@@ -72,7 +73,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             if (!(date instanceof Date)) return
             const key = format(date, "MMM dd")
             if (daily[key] !== undefined) {
-                daily[key].qty += parseInt(row['Qty Ordered'] || '0', 10) || 0
+                daily[key].qty += parseInt(String(row['Qty Ordered'] ?? '0'), 10) || 0
             }
         })
 

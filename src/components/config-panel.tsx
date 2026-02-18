@@ -10,11 +10,22 @@ import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X, Save, FolderOpen, Trash2, Loader2, FileUp, FileDown, Search, Trash } from 'lucide-react';
+import * as xlsx from 'xlsx';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 import { dbService, type ViewProfile } from '@/lib/db-service';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,6 +123,7 @@ export function ConfigPanel({
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = React.useState(true);
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = React.useState(false);
 
   // Profile State
   const [profiles, setProfiles] = React.useState<ViewProfile[]>([]);
@@ -318,7 +330,7 @@ export function ConfigPanel({
                   variant="ghost"
                   size="sm"
                   className="h-8 text-[11px] justify-start px-2 text-destructive hover:bg-destructive/10"
-                  onClick={onClear}
+                  onClick={() => setShowClearConfirm(true)}
                   disabled={fileName === 'Unknown file'}
                 >
                   <Trash className="mr-1.5 h-3.5 w-3.5" />
@@ -328,7 +340,6 @@ export function ConfigPanel({
               <Button variant="link" size="sm" className="h-6 p-0 text-[10px] text-muted-foreground hover:text-primary underline-offset-4" asChild>
                 <a href="#" onClick={(e) => {
                   e.preventDefault();
-                  const xlsx = require('xlsx');
                   const ws = xlsx.utils.aoa_to_sheet([["Linea", "Seriales", "Packed Date"]]);
                   const wb = xlsx.utils.book_new();
                   xlsx.utils.book_append_sheet(wb, ws, "Template");
@@ -479,6 +490,27 @@ export function ConfigPanel({
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
+
+      {/* Clear Confirmation Dialog */}
+      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar todos los datos?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción eliminará el archivo cargado, los filtros, las columnas seleccionadas y los seriales de empaque. No se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { onClear(); setShowClearConfirm(false); }}
+            >
+              Sí, limpiar todo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

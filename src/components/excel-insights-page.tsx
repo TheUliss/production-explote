@@ -20,7 +20,10 @@ export type ConstantFilter = { id: string; column: string; value: string; enable
 
 const STORAGE_KEYS = {
   FILTERS: 'prod-extractor-filters',
-  COLUMNS: 'prod-extractor-columns'
+  COLUMNS: 'prod-extractor-columns',
+  PACKED_SERIALS: 'prod-extractor-packed-serials',
+  FILE_DATA: 'prod-extractor-file-data',
+  FILE_NAME: 'prod-extractor-file-name',
 };
 
 export default function ExcelInsightsPage() {
@@ -46,17 +49,46 @@ export default function ExcelInsightsPage() {
   // UI States
   const [showAnalytics, setShowAnalytics] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const saved = localStorage.getItem('prod-extractor-last-sync');
+    return saved ? new Date(saved) : null;
+  });
 
   // Filtered Data
   const [filteredData, setFilteredData] = useState<any[] | null>(null);
   const [dataForSummaries, setDataForSummaries] = useState<any[] | null>(null);
 
-  // --- Persistence Persistence (Local) ---
+  // --- Persistence (Local) ---
   useEffect(() => {
     const savedFilters = localStorage.getItem(STORAGE_KEYS.FILTERS);
     const savedCols = localStorage.getItem(STORAGE_KEYS.COLUMNS);
+    const savedPacked = localStorage.getItem(STORAGE_KEYS.PACKED_SERIALS);
+    const savedFileData = localStorage.getItem(STORAGE_KEYS.FILE_DATA);
+    const savedFileName = localStorage.getItem(STORAGE_KEYS.FILE_NAME);
     if (savedFilters) setConstantFilters(JSON.parse(savedFilters));
     if (savedCols) setSelectedColumns(JSON.parse(savedCols));
+    if (savedPacked) {
+      const entries: [string, string][] = JSON.parse(savedPacked);
+      setPackedSerials(new Map(entries.map(([k, v]) => [k, new Date(v)])));
+    }
+    if (savedFileData) {
+      const parsed = JSON.parse(savedFileData);
+      // Re-hydrate Date objects from ISO strings
+      const rehydrated = parsed.map((row: any) => {
+        const newRow = { ...row };
+        Object.keys(newRow).forEach(k => {
+          if (typeof newRow[k] === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(newRow[k])) {
+            const d = new Date(newRow[k]);
+            if (!isNaN(d.getTime())) newRow[k] = d;
+          }
+        });
+        return newRow;
+      });
+      setFileData(rehydrated);
+      if (rehydrated.length > 0) setHeaders(Object.keys(rehydrated[0]));
+    }
+    if (savedFileName) setPersistedFileName(savedFileName);
   }, []);
 
   useEffect(() => {
@@ -67,6 +99,12 @@ export default function ExcelInsightsPage() {
       localStorage.setItem(STORAGE_KEYS.COLUMNS, JSON.stringify(selectedColumns));
     }
   }, [constantFilters, selectedColumns]);
+
+  // Persist packedSerials whenever it changes
+  useEffect(() => {
+    const entries = Array.from(packedSerials.entries()).map(([k, v]) => [k, v.toISOString()]);
+    localStorage.setItem(STORAGE_KEYS.PACKED_SERIALS, JSON.stringify(entries));
+  }, [packedSerials]);
 
   const handleFile = useCallback((selectedFile: File) => {
     setIsLoading(true);
@@ -79,6 +117,14 @@ export default function ExcelInsightsPage() {
       const ws = wb.Sheets[wsname];
       const data = utils.sheet_to_json(ws);
       setFileData(data);
+      // Persist file data and name to localStorage
+      try {
+        localStorage.setItem(STORAGE_KEYS.FILE_DATA, JSON.stringify(data));
+        localStorage.setItem(STORAGE_KEYS.FILE_NAME, selectedFile.name);
+      } catch (e) {
+        // localStorage might be full for very large files — fail silently
+        console.warn('Could not persist file data to localStorage:', e);
+      }
       if (data.length > 0) {
         const cols = Object.keys(data[0] as object);
         setHeaders(cols);
@@ -112,6 +158,9 @@ export default function ExcelInsightsPage() {
     setFileKey(prev => prev + 1);
     localStorage.removeItem(STORAGE_KEYS.FILTERS);
     localStorage.removeItem(STORAGE_KEYS.COLUMNS);
+    localStorage.removeItem(STORAGE_KEYS.PACKED_SERIALS);
+    localStorage.removeItem(STORAGE_KEYS.FILE_DATA);
+    localStorage.removeItem(STORAGE_KEYS.FILE_NAME);
   }, []);
 
   const handlePackingFile = useCallback((selectedFile: File) => {
@@ -145,20 +194,24 @@ export default function ExcelInsightsPage() {
     if (!fileData) return;
     setIsSyncing(true);
     try {
-      await dbService.saveProjectData(
+      // Only save config/metadata to Firestore (avoids 1MB document limit).
+      // Raw file data is already persisted in localStorage.
+      await dbService.saveProjectConfig(
         file?.name || persistedFileName || 'Shared Report',
-        fileData,
         {
           selectedColumns,
           dateFilter,
           dateColumn,
           constantFilters
         },
-        Array.from(packedSerials.entries())
+        Array.from(packedSerials.entries()).map(([k, v]) => [k, v.toISOString()])
       );
-      toast({ title: "Reporte sincronizado", description: "El reporte se guardó correctamente en la nube." });
+      const now = new Date();
+      setLastSyncedAt(now);
+      localStorage.setItem('prod-extractor-last-sync', now.toISOString());
+      toast({ title: "Configuración sincronizada", description: "La configuración se guardó en la nube. Los datos del archivo se mantienen localmente." });
     } catch (err) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudo sincronizar el reporte." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo sincronizar la configuración." });
     } finally {
       setIsSyncing(false);
     }
@@ -167,13 +220,9 @@ export default function ExcelInsightsPage() {
   const loadFromCloud = async () => {
     setIsLoading(true);
     try {
-      const report = await dbService.getProjectData();
+      // Load config from Firestore; data comes from localStorage
+      const report = await dbService.getProjectConfig();
       if (report) {
-        setFileData(report.data);
-        setPersistedFileName(report.fileName);
-        if (report.data.length > 0) {
-          setHeaders(Object.keys(report.data[0]));
-        }
         if (report.config) {
           setSelectedColumns(report.config.selectedColumns || []);
           setDateFilter(report.config.dateFilter || 'all');
@@ -181,12 +230,16 @@ export default function ExcelInsightsPage() {
           setConstantFilters(report.config.constantFilters || []);
         }
         if (report.packedSerials) {
-          setPackedSerials(new Map(report.packedSerials));
+          const entries: [string, string][] = report.packedSerials;
+          setPackedSerials(new Map(entries.map(([k, v]: [string, string]) => [k, new Date(v)])));
         }
-        toast({ title: "Datos cargados", description: "Se cargó el último reporte de la nube." });
+        if (report.fileName) setPersistedFileName(report.fileName);
+        toast({ title: "Configuración cargada", description: "Se restauró la configuración de la nube." });
+      } else {
+        toast({ title: "Sin datos en la nube", description: "No se encontró ninguna configuración guardada." });
       }
     } catch (err) {
-      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los datos." });
+      toast({ variant: "destructive", title: "Error", description: "No se pudo cargar la configuración." });
     } finally {
       setIsLoading(false);
     }
@@ -318,6 +371,11 @@ export default function ExcelInsightsPage() {
                   {isSyncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CloudUpload className="h-3 w-3 mr-1" />}
                   Sincronizar
                 </Button>
+                {lastSyncedAt && (
+                  <p className="text-[10px] text-muted-foreground mt-1 text-center">
+                    Última sync: {lastSyncedAt.toLocaleString()}
+                  </p>
+                )}
               </div>
             </div>
             <div className="lg:col-span-8 xl:col-span-9">

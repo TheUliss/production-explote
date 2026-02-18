@@ -22,13 +22,31 @@ import { cn } from '@/lib/utils';
 import { addDays, startOfToday } from 'date-fns';
 import { Input } from './ui/input';
 import { Alert, AlertDescription, AlertTitle } from './ui/alert';
+import type { ProductionRow } from '@/lib/types';
+import { useProductionFilters } from '@/hooks/use-production-filters';
+
+/** Highlights occurrences of `term` inside `text` with a <mark> element. */
+function HighlightText({ text, term }: { text: string; term: string }) {
+    if (!term.trim()) return <>{text}</>;
+    const regex = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+        <>
+            {parts.map((part, i) =>
+                regex.test(part)
+                    ? <mark key={i} className="bg-yellow-200 dark:bg-yellow-700 rounded-sm px-0.5">{part}</mark>
+                    : part
+            )}
+        </>
+    );
+}
 
 interface DataTableProps {
-    data: any[] | null;
+    data: ProductionRow[] | null;
     headers: string[];
     visibleColumns: string[];
-    originalData: any[] | null;
-    dataForSummaries: any[] | null;
+    originalData: ProductionRow[] | null;
+    dataForSummaries: ProductionRow[] | null;
     packedSerials: Set<string>;
     onPackingFileSelect: (file: File) => void;
     onClear: () => void;
@@ -50,10 +68,18 @@ export function DataTable({
 }: DataTableProps) {
     const [selectedRows, setSelectedRows] = React.useState<number[]>([]);
     const [searchQuery, setSearchQuery] = React.useState('');
+    const [debouncedSearch, setDebouncedSearch] = React.useState('');
     const [sortColumn, setSortColumn] = React.useState<string | null>(null);
     const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc');
     const [currentPage, setCurrentPage] = React.useState(1);
+    const [pageInputValue, setPageInputValue] = React.useState('1');
     const { toast } = useToast();
+
+    // Debounce search query by 200ms to avoid re-filtering on every keystroke
+    React.useEffect(() => {
+        const t = setTimeout(() => setDebouncedSearch(searchQuery), 200);
+        return () => clearTimeout(t);
+    }, [searchQuery]);
 
     // Previously we filtered headers to preserve original order. 
     // Now we want to respect the user's custom order in visibleColumns.
@@ -63,21 +89,15 @@ export function DataTable({
     const threeDays = addDays(today, 3);
     const sevenDays = addDays(today, 7);
 
-    // Count overdue items for alert
-    const overdueCount = React.useMemo(() => {
-        if (!data) return 0;
-        return data.filter(row => {
-            const scheduleDate = row['Schedule Date'];
-            return scheduleDate instanceof Date && scheduleDate < today;
-        }).length;
-    }, [data, today]);
+    // Use shared hook for overdue/due-soon classification (eliminates duplicated logic)
+    const { overdueCount } = useProductionFilters(data);
 
-    // Filter data based on search query
+    // Filter data based on debounced search query
     const filteredData = React.useMemo(() => {
         if (!data) return null;
-        if (!searchQuery.trim()) return data;
+        if (!debouncedSearch.trim()) return data;
 
-        const query = searchQuery.toLowerCase();
+        const query = debouncedSearch.toLowerCase();
         return data.filter(row =>
             orderedVisibleColumns.some(col => {
                 const value = row[col];
@@ -87,7 +107,7 @@ export function DataTable({
                 return value?.toString().toLowerCase().includes(query);
             })
         );
-    }, [data, searchQuery, orderedVisibleColumns]);
+    }, [data, debouncedSearch, orderedVisibleColumns]);
 
     // Sort filtered data
     const sortedData = React.useMemo(() => {
@@ -124,6 +144,7 @@ export function DataTable({
     React.useEffect(() => {
         setSelectedRows([]);
         setCurrentPage(1);
+        setPageInputValue('1');
     }, [data, searchQuery]);
 
     const handleSort = (column: string) => {
@@ -538,11 +559,17 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                     <TableCell className="px-1 text-center">
                                                         {getRiskInfo(row)?.icon}
                                                     </TableCell>
-                                                    {orderedVisibleColumns.map((header) => (
-                                                        <TableCell key={header}>
-                                                            {row[header] instanceof Date ? row[header].toLocaleDateString() : (row[header]?.toString() ?? '')}
-                                                        </TableCell>
-                                                    ))}
+                                                    {orderedVisibleColumns.map((header) => {
+                                                        const val = row[header];
+                                                        const cellText = val instanceof Date
+                                                            ? val.toLocaleDateString()
+                                                            : (val?.toString() ?? '');
+                                                        return (
+                                                            <TableCell key={header}>
+                                                                <HighlightText text={cellText} term={debouncedSearch} />
+                                                            </TableCell>
+                                                        );
+                                                    })}
                                                 </TableRow>
                                             )
                                         }) : (
@@ -559,28 +586,70 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
 
                             {/* Pagination */}
                             {totalPages > 1 && (
-                                <div className="flex items-center justify-between">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
                                     <p className="text-sm text-muted-foreground">
                                         Página {currentPage} de {totalPages}
                                     </p>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-1">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            onClick={() => { setCurrentPage(1); setPageInputValue('1'); }}
+                                            disabled={currentPage === 1}
+                                            title="Primera página"
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                            <ChevronLeft className="h-4 w-4 -ml-3" />
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => { const p = Math.max(1, currentPage - 1); setCurrentPage(p); setPageInputValue(String(p)); }}
                                             disabled={currentPage === 1}
                                         >
                                             <ChevronLeft className="h-4 w-4" />
                                             Anterior
                                         </Button>
+                                        <div className="flex items-center gap-1 mx-1">
+                                            <Input
+                                                type="number"
+                                                min={1}
+                                                max={totalPages}
+                                                value={pageInputValue}
+                                                onChange={(e) => setPageInputValue(e.target.value)}
+                                                onBlur={() => {
+                                                    const p = Math.min(totalPages, Math.max(1, parseInt(pageInputValue) || 1));
+                                                    setCurrentPage(p);
+                                                    setPageInputValue(String(p));
+                                                }}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        const p = Math.min(totalPages, Math.max(1, parseInt(pageInputValue) || 1));
+                                                        setCurrentPage(p);
+                                                        setPageInputValue(String(p));
+                                                    }
+                                                }}
+                                                className="w-14 h-8 text-xs text-center"
+                                            />
+                                        </div>
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            onClick={() => { const p = Math.min(totalPages, currentPage + 1); setCurrentPage(p); setPageInputValue(String(p)); }}
                                             disabled={currentPage === totalPages}
                                         >
                                             Siguiente
                                             <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => { setCurrentPage(totalPages); setPageInputValue(String(totalPages)); }}
+                                            disabled={currentPage === totalPages}
+                                            title="Última página"
+                                        >
+                                            <ChevronRight className="h-4 w-4" />
+                                            <ChevronRight className="h-4 w-4 -ml-3" />
                                         </Button>
                                     </div>
                                 </div>

@@ -119,7 +119,7 @@ export const dbService = {
         }
     },
 
-    // Load project data
+    // Load project data (legacy — kept for backward compatibility)
     async getProjectData() {
         if (!isCloudEnabled()) return null;
         try {
@@ -133,5 +133,53 @@ export const dbService = {
             console.error("Error loading project data:", error);
             return null;
         }
-    }
+    },
+
+    // Save only config + metadata (no raw data) to avoid 1MB Firestore limit.
+    // Raw file data is persisted in localStorage by the caller.
+    async saveProjectConfig(fileName: string, config: any, packedSerials?: [string, string][]) {
+        const LOCAL_CONFIG_KEY = "prod-extractor-cloud-config";
+        const configData = { fileName, config, packedSerials: packedSerials || [], updatedAt: new Date().toISOString() };
+
+        // Always save locally as fallback
+        localStorage.setItem(LOCAL_CONFIG_KEY, JSON.stringify(configData));
+
+        if (!isCloudEnabled()) return;
+
+        try {
+            const configRef = doc(db, "projects", "current-config");
+            await setDoc(configRef, {
+                ...configData,
+                updatedAt: Timestamp.now(),
+            });
+        } catch (error) {
+            console.error("Error saving project config to cloud:", error);
+            throw error;
+        }
+    },
+
+    // Load config + metadata from Firestore (or localStorage fallback).
+    async getProjectConfig() {
+        const LOCAL_CONFIG_KEY = "prod-extractor-cloud-config";
+
+        if (!isCloudEnabled()) {
+            const local = localStorage.getItem(LOCAL_CONFIG_KEY);
+            return local ? JSON.parse(local) : null;
+        }
+
+        try {
+            const docRef = doc(db, "projects", "current-config");
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) {
+                return docSnap.data();
+            }
+            // Fallback to localStorage
+            const local = localStorage.getItem(LOCAL_CONFIG_KEY);
+            return local ? JSON.parse(local) : null;
+        } catch (error) {
+            console.error("Error loading project config:", error);
+            const local = localStorage.getItem(LOCAL_CONFIG_KEY);
+            return local ? JSON.parse(local) : null;
+        }
+    },
 };
