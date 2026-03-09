@@ -56,8 +56,8 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
     const [startDate, setStartDate] = React.useState<Date | undefined>()
     const [endDate, setEndDate] = React.useState<Date | undefined>()
 
-    // Option to filter packed chart by Item Description (Artículo)
-    const [selectedItem, setSelectedItem] = React.useState<string>("all")
+    // Option to filter packed chart by Item/Job (Artículo)
+    const [selectedJob, setSelectedJob] = React.useState<string>("all")
 
     const toggleShift = (id: string) => {
         setActiveShifts(prev => {
@@ -78,34 +78,15 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
         return map
     }, [data])
 
-    // Get list of unique items currently packed
-    const availableItems = React.useMemo(() => {
-        const items = new Set<string>()
-        const jobKeys = Array.from(jobPrefixToItem.keys())
-
+    // Get list of unique Jobs currently packed (root part before first hyphen)
+    const availableJobs = React.useMemo(() => {
+        const jobs = new Set<string>()
         packedSerials.forEach((_, serial) => {
-            // Try exact match first
-            let found = false;
-            // Or extract prefix (e.g. 1234567-01-001 -> 1234567-01)
-            const parts = serial.split('-')
-            if (parts.length >= 2) {
-                const prefix2 = `${parts[0]}-${parts[1]}`
-                if (jobPrefixToItem.has(prefix2)) {
-                    items.add(jobPrefixToItem.get(prefix2)!)
-                    found = true
-                }
-            }
-
-            // If not found, try more expensive prefix match
-            if (!found) {
-                const match = jobKeys.find(k => serial.startsWith(k))
-                if (match) {
-                    items.add(jobPrefixToItem.get(match)!)
-                }
-            }
+            const rootPart = serial.split('-')[0]
+            if (rootPart) jobs.add(rootPart)
         })
-        return Array.from(items).sort()
-    }, [packedSerials, jobPrefixToItem])
+        return Array.from(jobs).sort()
+    }, [packedSerials])
 
     // Calculate packed count per shift
     const packByShift = React.useMemo(() => {
@@ -122,23 +103,8 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                 if (date > dTo) return
             }
 
-            if (selectedItem !== "all") {
-                let currentItemDesc = ""
-                const parts = serial.split('-')
-                if (parts.length >= 2) {
-                    const prefix2 = `${parts[0]}-${parts[1]}`
-                    currentItemDesc = jobPrefixToItem.get(prefix2) || ""
-                }
-
-                if (!currentItemDesc) {
-                    const jobKeys = Array.from(jobPrefixToItem.keys())
-                    const match = jobKeys.find(k => serial.startsWith(k))
-                    if (match) {
-                        currentItemDesc = jobPrefixToItem.get(match) || ""
-                    }
-                }
-
-                if (currentItemDesc !== selectedItem) return
+            if (selectedJob !== "all") {
+                if (!serial.startsWith(selectedJob + "-")) return
             }
 
             const shift = getShiftForDate(date)
@@ -150,7 +116,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             .filter(s => activeShifts.has(s.id))
             .map(s => ({ name: s.id, value: counts[s.id] || 0, color: SHIFT_COLORS[s.id] }))
             .filter(d => d.value > 0)
-    }, [packedSerials, activeShifts, startDate, endDate, selectedItem, jobPrefixToItem])
+    }, [packedSerials, activeShifts, startDate, endDate, selectedJob])
 
     const totalPackedFiltered = packByShift.reduce((a, b) => a + b.value, 0)
 
@@ -236,20 +202,20 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                             </div>
                             <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
                                 <div className="w-full sm:w-[180px]">
-                                    <Select value={selectedItem} onValueChange={setSelectedItem}>
+                                    <Select value={selectedJob} onValueChange={setSelectedJob}>
                                         <SelectTrigger className="h-8 text-[11px]">
-                                            <SelectValue placeholder="Filtrar por Artículo" />
+                                            <SelectValue placeholder="Filtrar por Job" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Todos los artículos</SelectItem>
-                                            {availableItems.length > 0 ? (
-                                                availableItems.map(item => (
-                                                    <SelectItem key={item} value={item} className="text-[11px]">
-                                                        {item}
+                                            <SelectItem value="all">Todos los Jobs</SelectItem>
+                                            {availableJobs.length > 0 ? (
+                                                availableJobs.map(job => (
+                                                    <SelectItem key={job} value={job} className="text-[11px]">
+                                                        {job}
                                                     </SelectItem>
                                                 ))
                                             ) : (
-                                                <SelectItem value="none" disabled>Sin artículos empacados</SelectItem>
+                                                <SelectItem value="none" disabled>Sin jobs empacados</SelectItem>
                                             )}
                                         </SelectContent>
                                     </Select>
