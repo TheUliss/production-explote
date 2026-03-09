@@ -9,7 +9,7 @@ import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X, Save, FolderOpen, Trash2, Loader2, FileUp, FileDown, Search, Trash } from 'lucide-react';
+import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X, Save, FolderOpen, Trash2, Loader2, FileUp, FileDown, Search, Trash, CheckCircle, Clock as ClockIcon } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -78,6 +78,8 @@ interface ConfigPanelProps {
   onMainFileSelect: (file: File) => void;
   onPackingFileSelect: (file: File) => void;
   onClear: () => void;
+  /** Number of packed serials currently loaded — used to know if packing file is active */
+  packedCount: number;
 }
 
 function SortableItem({ id }: { id: string }) {
@@ -132,6 +134,7 @@ export function ConfigPanel({
   onMainFileSelect,
   onPackingFileSelect,
   onClear,
+  packedCount,
 }: ConfigPanelProps) {
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = React.useState(true);
@@ -317,49 +320,17 @@ export function ConfigPanel({
               </div>
             </div>
 
-            {/* Quick Actions (Utility) */}
-            <div className="space-y-3">
-              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
-                <FileUp className="h-3 w-3" /> Acciones Rápidas
-              </Label>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="h-8 text-[11px] justify-start px-2 bg-muted/20" asChild title="Subir reporte de empaque">
-                  <label className="cursor-pointer">
-                    <FileUp className="mr-1.5 h-3.5 w-3.5 text-blue-500" />
-                    Empaque
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".xlsx, .xls"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) onPackingFileSelect(f);
-                        e.target.value = '';
-                      }}
-                    />
-                  </label>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-[11px] justify-start px-2 text-destructive hover:bg-destructive/10"
-                  onClick={() => setShowClearConfirm(true)}
-                  disabled={fileName === 'Unknown file'}
-                >
-                  <Trash className="mr-1.5 h-3.5 w-3.5" />
-                  Limpiar
-                </Button>
-              </div>
-              <Button variant="link" size="sm" className="h-6 p-0 text-[10px] text-muted-foreground hover:text-primary underline-offset-4" asChild>
-                <a href="#" onClick={(e) => {
-                  e.preventDefault();
-                  const ws = xlsx.utils.aoa_to_sheet([["Linea", "Seriales", "Packed Date"]]);
-                  const wb = xlsx.utils.book_new();
-                  xlsx.utils.book_append_sheet(wb, ws, "Template");
-                  xlsx.writeFile(wb, "packing_template.xlsx");
-                }}>
-                  <FileDown className="h-3 w-3 mr-1" /> Descargar Plantilla Empaque
-                </a>
+            {/* Quick Actions (Utility) — only Limpiar remains here */}
+            <div className="flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-[11px] px-2 text-destructive hover:bg-destructive/10"
+                onClick={() => setShowClearConfirm(true)}
+                disabled={fileName === 'Unknown file'}
+              >
+                <Trash className="mr-1.5 h-3.5 w-3.5" />
+                Limpiar todo
               </Button>
             </div>
 
@@ -464,32 +435,6 @@ export function ConfigPanel({
                   )}
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-[10px] text-muted-foreground uppercase font-bold">Turnos (Shifts)</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {SHIFTS.map(shift => (
-                      <div key={shift.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`shift-${shift.id}`}
-                          checked={selectedShifts.has(shift.id)}
-                          onCheckedChange={(checked) => {
-                            const newSet = new Set(selectedShifts);
-                            if (checked) newSet.add(shift.id);
-                            else newSet.delete(shift.id);
-                            setSelectedShifts(newSet);
-                          }}
-                        />
-                        <label
-                          htmlFor={`shift-${shift.id}`}
-                          className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                          title={shift.label}
-                        >
-                          {shift.id}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
               </div>
 
               <div className='space-y-2 rounded-md border p-3 bg-muted/10'>
@@ -532,6 +477,87 @@ export function ConfigPanel({
                   {constantFilters.length === 0 && <p className="text-[10px] text-muted-foreground text-center py-2 italic font-light">Sin filtros activos.</p>}
                 </div>
               </div>
+            </div>
+
+            {/* ── Empaque & Turnos ─────────────────────────── */}
+            <div className="space-y-3 pt-2 border-t">
+              <Label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <FileUp className="h-3 w-3" /> Empaque
+              </Label>
+
+              {/* Packing file upload row */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 h-9 text-[11px] justify-center bg-muted/20 border-blue-200 hover:border-blue-400 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors"
+                  asChild
+                  title="Subir reporte de empaque"
+                >
+                  <label className="cursor-pointer flex items-center justify-center gap-1.5">
+                    {packedCount > 0
+                      ? <><CheckCircle className="h-3.5 w-3.5 text-green-600" /><span className="text-green-700 dark:text-green-400 font-medium">{packedCount} seriales cargados</span></>
+                      : <><FileUp className="h-3.5 w-3.5 text-blue-500" /><span>Subir hoja de empaque</span></>}
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept=".xlsx, .xls"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) onPackingFileSelect(f);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 text-muted-foreground hover:text-foreground"
+                  title="Descargar plantilla de empaque"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const ws = xlsx.utils.aoa_to_sheet([["Linea", "Seriales", "Packed Date"]]);
+                    const wb = xlsx.utils.book_new();
+                    xlsx.utils.book_append_sheet(wb, ws, "Template");
+                    xlsx.writeFile(wb, "packing_template.xlsx");
+                  }}
+                >
+                  <FileDown className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              {/* Turnos — only visible when a packing file is loaded */}
+              {packedCount > 0 && (
+                <div className="rounded-md border p-3 bg-muted/10 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Label className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
+                    <ClockIcon className="h-3 w-3" /> Turnos (Shifts)
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SHIFTS.map(shift => (
+                      <div key={shift.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`shift-${shift.id}`}
+                          checked={selectedShifts.has(shift.id)}
+                          onCheckedChange={(checked) => {
+                            const newSet = new Set(selectedShifts);
+                            if (checked) newSet.add(shift.id);
+                            else newSet.delete(shift.id);
+                            setSelectedShifts(newSet);
+                          }}
+                        />
+                        <label
+                          htmlFor={`shift-${shift.id}`}
+                          className="text-xs font-medium leading-none cursor-pointer"
+                          title={shift.label}
+                        >
+                          {shift.id}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </CollapsibleContent>

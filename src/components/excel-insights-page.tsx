@@ -407,6 +407,7 @@ export default function ExcelInsightsPage() {
                 onMainFileSelect={(f) => { handleFile(f); addAuditLog('File Uploaded', f.name); }}
                 onPackingFileSelect={(f) => { handlePackingFile(f); addAuditLog('Packing File Uploaded', f.name); }}
                 onClear={() => { resetFileUpload(); addAuditLog('System', 'All data cleared'); }}
+                packedCount={packedSerials.size}
               />
               <div className="mt-4 p-4 border rounded-md bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
                 <div className="flex items-center gap-2 mb-2">
