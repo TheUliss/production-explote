@@ -17,7 +17,7 @@ import {
     Area
 } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { format, addDays, startOfToday, isWithinInterval, startOfDay, endOfDay } from "date-fns"
+import { format, addDays, subDays, startOfToday, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 import type { ProductionRow } from "@/lib/types"
 import { getShiftForDate, SHIFTS } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -72,9 +72,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
         const map = new Map<string, string>()
         data.forEach(row => {
             if (row['Job Number'] && row['Item Description']) {
-                // Assuming standard prefix like "1234567-01", extract just the first part if needed, 
-                // but usually the Excel has the full base Job Number
-                map.set(String(row['Job Number']), String(row['Item Description']))
+                map.set(String(row['Job Number']).trim(), String(row['Item Description']).trim())
             }
         })
         return map
@@ -83,13 +81,27 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
     // Get list of unique items currently packed
     const availableItems = React.useMemo(() => {
         const items = new Set<string>()
+        const jobKeys = Array.from(jobPrefixToItem.keys())
+
         packedSerials.forEach((_, serial) => {
-            // serial format: "1234567-01-001" -> extract "1234567-01"
+            // Try exact match first
+            let found = false;
+            // Or extract prefix (e.g. 1234567-01-001 -> 1234567-01)
             const parts = serial.split('-')
             if (parts.length >= 2) {
-                const jobPrefix = `${parts[0]}-${parts[1]}`
-                const itemDesc = jobPrefixToItem.get(jobPrefix)
-                if (itemDesc) items.add(itemDesc)
+                const prefix2 = `${parts[0]}-${parts[1]}`
+                if (jobPrefixToItem.has(prefix2)) {
+                    items.add(jobPrefixToItem.get(prefix2)!)
+                    found = true
+                }
+            }
+
+            // If not found, try more expensive prefix match
+            if (!found) {
+                const match = jobKeys.find(k => serial.startsWith(k))
+                if (match) {
+                    items.add(jobPrefixToItem.get(match)!)
+                }
             }
         })
         return Array.from(items).sort()
@@ -111,14 +123,22 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             }
 
             if (selectedItem !== "all") {
+                let currentItemDesc = ""
                 const parts = serial.split('-')
                 if (parts.length >= 2) {
-                    const jobPrefix = `${parts[0]}-${parts[1]}`
-                    const itemDesc = jobPrefixToItem.get(jobPrefix)
-                    if (itemDesc !== selectedItem) return
-                } else {
-                    return // Cannot determine item
+                    const prefix2 = `${parts[0]}-${parts[1]}`
+                    currentItemDesc = jobPrefixToItem.get(prefix2) || ""
                 }
+
+                if (!currentItemDesc) {
+                    const jobKeys = Array.from(jobPrefixToItem.keys())
+                    const match = jobKeys.find(k => serial.startsWith(k))
+                    if (match) {
+                        currentItemDesc = jobPrefixToItem.get(match) || ""
+                    }
+                }
+
+                if (currentItemDesc !== selectedItem) return
             }
 
             const shift = getShiftForDate(date)
@@ -235,11 +255,23 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     </Select>
                                 </div>
 
-                                <div className="flex items-center gap-1.5 shrink-0 bg-muted/20 p-1 rounded-md border border-border/50">
+                                <div className="flex items-center gap-1 shrink-0 bg-muted/20 p-1 rounded-md border border-border/50">
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-6 px-2 text-[10px] font-bold hover:bg-primary/10"
+                                        className="h-6 px-1.5 text-[10px] font-bold hover:bg-primary/10"
+                                        onClick={() => {
+                                            const yesterday = subDays(startOfToday(), 1);
+                                            setStartDate(yesterday);
+                                            setEndDate(yesterday);
+                                        }}
+                                    >
+                                        Ayer
+                                    </Button>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-1.5 text-[10px] font-bold hover:bg-primary/10"
                                         onClick={() => {
                                             const today = startOfToday();
                                             setStartDate(today);
@@ -248,11 +280,11 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     >
                                         Hoy
                                     </Button>
-                                    <div className="w-[125px]">
+                                    <div className="w-[115px]">
                                         <DatePicker date={startDate} setDate={setStartDate} label="Desde" />
                                     </div>
                                     <span className="text-muted-foreground text-[10px]">al</span>
-                                    <div className="w-[125px]">
+                                    <div className="w-[115px]">
                                         <DatePicker date={endDate} setDate={setEndDate} label="Hasta" />
                                     </div>
                                 </div>
