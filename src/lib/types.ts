@@ -50,23 +50,38 @@ export const SHIFTS: ShiftDefinition[] = [
  * Returns the shift that is currently active based on the given Date.
  * Returns null if no shift matches (shouldn't happen in practice).
  */
-export function getCurrentShift(now: Date = new Date()): ShiftId {
-    const day = now.getDay();   // 0=Sun … 6=Sat
-    const hour = now.getHours();
+/**
+ * Returns the shift that is currently active based on the given Date.
+ */
+export function getShiftForDate(date: Date): ShiftId | null {
+    const day = date.getDay();   // 0=Sun … 6=Sat
+    const hour = date.getHours();
 
     for (const shift of SHIFTS) {
-        if (!shift.days.includes(day)) continue;
-
         const crossesMidnight = shift.endHour < shift.startHour;
+
         if (crossesMidnight) {
-            // e.g. 19:00–07:00  →  hour >= 19 OR hour < 7
-            if (hour >= shift.startHour || hour < shift.endHour) return shift.id;
+            // Night Shift Logic
+            // 1. Started today? (e.g., Fri 20:00 is N4)
+            if (shift.days.includes(day) && hour >= shift.startHour) {
+                return shift.id;
+            }
+            // 2. Started yesterday? (e.g., Mon 04:00 is N4 because Sun is N4)
+            // If hour < endHour (e.g. 4 < 7), check if *yesterday* was a shift day.
+            if (hour < shift.endHour) {
+                const prevDay = (day === 0) ? 6 : day - 1;
+                if (shift.days.includes(prevDay)) {
+                    return shift.id;
+                }
+            }
         } else {
-            // e.g. 07:00–19:00  →  hour >= 7 AND hour < 19
-            if (hour >= shift.startHour && hour < shift.endHour) return shift.id;
+            // Day Shift Logic (Standard)
+            if (shift.days.includes(day) && hour >= shift.startHour && hour < shift.endHour) {
+                return shift.id;
+            }
         }
     }
-
-    // Fallback: return the first shift of the day
-    return 'all';
+    return null;
 }
+
+export const getCurrentShift = (now: Date = new Date()) => getShiftForDate(now) || 'all';

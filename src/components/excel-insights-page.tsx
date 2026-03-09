@@ -14,7 +14,20 @@ import { dbService } from '@/lib/db-service';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { read, utils } from 'xlsx';
-import { startOfToday, isValid, addDays, startOfMonth, endOfMonth, parseISO } from 'date-fns';
+import { startOfToday, isValid, addDays, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
+import { useOverdueNotifications } from '@/hooks/use-overdue-notifications';
+import { DateRange } from 'react-day-picker';
+import { getShiftForDate } from '@/lib/types';
+import { AuditLog, type AuditLogEntry } from '@/components/audit-log';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
+import { ScrollText } from 'lucide-react';
 
 export type ConstantFilter = { id: string; column: string; value: string; enabled?: boolean };
 
@@ -41,7 +54,20 @@ export default function ExcelInsightsPage() {
   // Filter States
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [dateColumn, setDateColumn] = useState<string>('');
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [selectedShifts, setSelectedShifts] = useState<Set<string>>(new Set(['N1', 'N2', 'N3', 'N4']));
   const [constantFilters, setConstantFilters] = useState<ConstantFilter[]>([]);
+
+  // Audit Log
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const addAuditLog = (action: string, details: string) => {
+    setAuditLogs(prev => [...prev, {
+      id: Math.random().toString(36),
+      action,
+      details,
+      timestamp: new Date()
+    }]);
+  };
 
   // Packing Data
   const [packedSerials, setPackedSerials] = useState<Map<string, Date>>(new Map());
@@ -58,6 +84,9 @@ export default function ExcelInsightsPage() {
   // Filtered Data
   const [filteredData, setFilteredData] = useState<any[] | null>(null);
   const [dataForSummaries, setDataForSummaries] = useState<any[] | null>(null);
+
+  // Notifications
+  useOverdueNotifications(filteredData);
 
   // --- Persistence (Local) ---
   useEffect(() => {
@@ -136,8 +165,8 @@ export default function ExcelInsightsPage() {
 
         // Auto-detect date column
         const dateCol = cols.find(c => {
-          const lowC = c.toLowerCase();
-          return lowC.includes('date') || lowC.includes('fecha') || lowC.includes('schedule');
+          const lowC = c?.toLowerCase();
+          return lowC?.includes('date') || lowC?.includes('fecha') || lowC?.includes('schedule');
         });
         if (dateCol) setDateColumn(dateCol);
       }
@@ -266,7 +295,7 @@ export default function ExcelInsightsPage() {
 
         if (filterValues.length > 0) {
           dataAfterConstantFilters = dataAfterConstantFilters.filter(row => {
-            const rowValue = row[column]?.toString().toLowerCase() || '';
+            const rowValue = row[column]?.toString()?.toLowerCase() || '';
             return filterValues.includes(rowValue);
           });
         }
@@ -317,12 +346,31 @@ export default function ExcelInsightsPage() {
             const currentYear = now.getFullYear();
             return itemMonth === currentMonth && itemYear === currentYear;
           }
+          case 'custom': {
+            if (!dateRange?.from) return true;
+            // We need to compare specific dates. 
+            // itemDate is already a valid Date object.
+            const from = dateRange.from;
+            const to = dateRange.to || dateRange.from;
+            return isWithinInterval(itemDate, { start: from, end: to });
+          }
           default: return true;
         }
       });
     }
+
+    // Filter by Shift
+    if (dateColumn && selectedShifts.size < 4) { // Only filter if not all shifts selected
+      dataAfterDateFilters = dataAfterDateFilters.filter(row => {
+        const val = row[dateColumn];
+        if (!(val instanceof Date)) return false;
+        const shift = getShiftForDate(val);
+        return shift && selectedShifts.has(shift);
+      });
+    }
+
     setFilteredData(dataAfterDateFilters);
-  }, [fileData, dateFilter, dateColumn, constantFilters]);
+  }, [fileData, dateFilter, dateColumn, constantFilters, dateRange, selectedShifts]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -350,11 +398,15 @@ export default function ExcelInsightsPage() {
                 setDateFilter={setDateFilter}
                 dateColumn={dateColumn}
                 setDateColumn={setDateColumn}
+                dateRange={dateRange}
+                setDateRange={setDateRange}
+                selectedShifts={selectedShifts}
+                setSelectedShifts={setSelectedShifts}
                 constantFilters={constantFilters}
                 setConstantFilters={setConstantFilters}
-                onMainFileSelect={handleFile}
-                onPackingFileSelect={handlePackingFile}
-                onClear={resetFileUpload}
+                onMainFileSelect={(f) => { handleFile(f); addAuditLog('File Uploaded', f.name); }}
+                onPackingFileSelect={(f) => { handlePackingFile(f); addAuditLog('Packing File Uploaded', f.name); }}
+                onClear={() => { resetFileUpload(); addAuditLog('System', 'All data cleared'); }}
               />
               <div className="mt-4 p-4 border rounded-md bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
                 <div className="flex items-center gap-2 mb-2">
@@ -365,7 +417,7 @@ export default function ExcelInsightsPage() {
                   variant="outline"
                   size="sm"
                   className="w-full bg-white dark:bg-background h-8 text-xs border-blue-200"
-                  onClick={handleCloudSync}
+                  onClick={() => { handleCloudSync(); addAuditLog('Sync', 'Configuration synced to cloud'); }}
                   disabled={isSyncing || !fileData}
                 >
                   {isSyncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CloudUpload className="h-3 w-3 mr-1" />}
@@ -377,15 +429,36 @@ export default function ExcelInsightsPage() {
                   </p>
                 )}
               </div>
+
+              {/* Audit Log Trigger */}
+              <div className="mt-4">
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground">
+                      <ScrollText className="mr-2 h-3.5 w-3.5" />
+                      Ver Registro de Actividad
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetHeader>
+                      <SheetTitle>Registro de Actividad</SheetTitle>
+                      <SheetDescription>Acciones recientes en la sesión actual.</SheetDescription>
+                    </SheetHeader>
+                    <div className="mt-4">
+                      <AuditLog logs={auditLogs} />
+                    </div>
+                  </SheetContent>
+                </Sheet>
+              </div>
             </div>
             <div className="lg:col-span-8 xl:col-span-9">
               {!fileData ? (
                 <div className="flex flex-col items-center justify-center p-8 bg-card rounded-xl border-2 border-dashed h-full min-h-[60vh] transition-all hover:bg-muted/5">
-                  <FileUpload onFileSelect={handleFile} />
+                  <FileUpload onFileSelect={(f) => { handleFile(f); addAuditLog('File Uploaded', f.name); }} />
                   <div className="mt-12 flex flex-col items-center gap-4 border-t pt-8 w-full max-w-md opacity-60">
                     <span className="text-[10px] uppercase font-bold tracking-[0.2em]">Opciones Rápidas</span>
                     <div className="flex gap-4">
-                      <Button variant="outline" size="sm" onClick={loadFromCloud}>
+                      <Button variant="outline" size="sm" onClick={() => { loadFromCloud(); addAuditLog('Load Cloud', 'Configuration loaded from cloud'); }}>
                         <CloudDownload className="mr-2 h-4 w-4 text-blue-500" />
                         De la Nube
                       </Button>

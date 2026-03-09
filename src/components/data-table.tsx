@@ -15,6 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { AlertTriangle, ArrowUpDown, ChevronLeft, ChevronRight, Download, Search, TableIcon, Trash2, Upload, FileUp, FileDown, Copy, CheckCircle2, Clock, AlertCircle, Zap } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { downloadReport } from '@/lib/xlsx-utils';
+import { PdfExportButton } from './pdf-export-button';
 import { ScrollArea, ScrollBar } from './ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { Checkbox } from './ui/checkbox';
@@ -104,7 +105,7 @@ export function DataTable({
                 if (value instanceof Date) {
                     return value.toLocaleDateString().toLowerCase().includes(query);
                 }
-                return value?.toString().toLowerCase().includes(query);
+                return value?.toString()?.toLowerCase().includes(query) ?? false;
             })
         );
     }, [data, debouncedSearch, orderedVisibleColumns]);
@@ -454,6 +455,13 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                     <Download className="mr-2 h-3.5 w-3.5 text-blue-600" />
                                     Serials
                                 </Button>
+
+                                <PdfExportButton
+                                    data={sortedData || []}
+                                    headers={orderedVisibleColumns}
+                                    fileName={fileName}
+                                    disabled={!sortedData || sortedData.length === 0}
+                                />
 
                                 <Button variant="outline" size="sm" onClick={handleCopySummary} title="Copiar Resumen" className="justify-center h-9">
                                     <Copy className="mr-2 h-3.5 w-3.5 text-orange-600" />

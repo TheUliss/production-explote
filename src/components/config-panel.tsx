@@ -55,6 +55,11 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
+import { DateRange } from 'react-day-picker';
+import { DatePickerWithRange } from './ui/date-range-picker';
+import { SHIFTS } from '@/lib/types';
+import { Checkbox } from './ui/checkbox';
+
 interface ConfigPanelProps {
   fileName: string;
   headers: string[];
@@ -64,6 +69,10 @@ interface ConfigPanelProps {
   setDateFilter: (filter: string) => void;
   dateColumn: string;
   setDateColumn: (column: string) => void;
+  dateRange: DateRange | undefined;
+  setDateRange: (range: DateRange | undefined) => void;
+  selectedShifts: Set<string>;
+  setSelectedShifts: (shifts: Set<string>) => void;
   constantFilters: ConstantFilter[];
   setConstantFilters: React.Dispatch<React.SetStateAction<ConstantFilter[]>>;
   onMainFileSelect: (file: File) => void;
@@ -114,6 +123,10 @@ export function ConfigPanel({
   setDateFilter,
   dateColumn,
   setDateColumn,
+  dateRange,
+  setDateRange,
+  selectedShifts,
+  setSelectedShifts,
   constantFilters,
   setConstantFilters,
   onMainFileSelect,
@@ -441,8 +454,41 @@ export function ConfigPanel({
                       <SelectItem value="overdue">Vencidas</SelectItem>
                       <SelectItem value="due-soon-7">Próximos 7 días</SelectItem>
                       <SelectItem value="current-month">Mes en curso</SelectItem>
+                      <SelectItem value="custom">Rango Personalizado</SelectItem>
                     </SelectContent>
                   </Select>
+                  {dateFilter === 'custom' && (
+                    <div className="pt-1">
+                      <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] text-muted-foreground uppercase font-bold">Turnos (Shifts)</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {SHIFTS.map(shift => (
+                      <div key={shift.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`shift-${shift.id}`}
+                          checked={selectedShifts.has(shift.id)}
+                          onCheckedChange={(checked) => {
+                            const newSet = new Set(selectedShifts);
+                            if (checked) newSet.add(shift.id);
+                            else newSet.delete(shift.id);
+                            setSelectedShifts(newSet);
+                          }}
+                        />
+                        <label
+                          htmlFor={`shift-${shift.id}`}
+                          className="text-xs font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                          title={shift.label}
+                        >
+                          {shift.id}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
 
