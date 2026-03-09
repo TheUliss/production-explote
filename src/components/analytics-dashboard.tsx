@@ -263,26 +263,26 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="h-[220px]">
+                    <CardContent className="h-[350px]">
                         {packByShift.length === 0 ? (
                             <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
                                 Sin datos para los turnos seleccionados
                             </div>
                         ) : (
                             <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
+                                <PieChart margin={{ bottom: 20, top: 20 }}>
                                     <Pie
                                         data={packByShift}
                                         cx="50%"
                                         cy="50%"
-                                        innerRadius={55}
-                                        outerRadius={85}
+                                        innerRadius={60}
+                                        outerRadius={100}
                                         paddingAngle={4}
                                         dataKey="value"
                                         label={({ name, value, percent }) =>
                                             `${name}: ${value} (${(percent * 100).toFixed(0)}%)`
                                         }
-                                        labelLine={false}
+                                        labelLine={true}
                                     >
                                         {packByShift.map((entry) => (
                                             <Cell key={entry.name} fill={entry.color} />
