@@ -71,8 +71,6 @@ interface ConfigPanelProps {
   setDateColumn: (column: string) => void;
   dateRange: DateRange | undefined;
   setDateRange: (range: DateRange | undefined) => void;
-  selectedShifts: Set<string>;
-  setSelectedShifts: (shifts: Set<string>) => void;
   constantFilters: ConstantFilter[];
   setConstantFilters: React.Dispatch<React.SetStateAction<ConstantFilter[]>>;
   onMainFileSelect: (file: File) => void;
@@ -127,8 +125,6 @@ export function ConfigPanel({
   setDateColumn,
   dateRange,
   setDateRange,
-  selectedShifts,
-  setSelectedShifts,
   constantFilters,
   setConstantFilters,
   onMainFileSelect,
@@ -527,37 +523,6 @@ export function ConfigPanel({
                 </Button>
               </div>
 
-              {/* Turnos — only visible when a packing file is loaded */}
-              {packedCount > 0 && (
-                <div className="rounded-md border p-3 bg-muted/10 space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                  <Label className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1.5">
-                    <ClockIcon className="h-3 w-3" /> Turnos (Shifts)
-                  </Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {SHIFTS.map(shift => (
-                      <div key={shift.id} className="flex items-center space-x-2">
-                        <Checkbox
-                          id={`shift-${shift.id}`}
-                          checked={selectedShifts.has(shift.id)}
-                          onCheckedChange={(checked) => {
-                            const newSet = new Set(selectedShifts);
-                            if (checked) newSet.add(shift.id);
-                            else newSet.delete(shift.id);
-                            setSelectedShifts(newSet);
-                          }}
-                        />
-                        <label
-                          htmlFor={`shift-${shift.id}`}
-                          className="text-xs font-medium leading-none cursor-pointer"
-                          title={shift.label}
-                        >
-                          {shift.id}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </CardContent>
         </CollapsibleContent>

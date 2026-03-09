@@ -55,7 +55,6 @@ export default function ExcelInsightsPage() {
   const [dateFilter, setDateFilter] = useState<string>('all');
   const [dateColumn, setDateColumn] = useState<string>('');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [selectedShifts, setSelectedShifts] = useState<Set<string>>(new Set(['N1', 'N2', 'N3', 'N4']));
   const [constantFilters, setConstantFilters] = useState<ConstantFilter[]>([]);
 
   // Audit Log
@@ -358,19 +357,8 @@ export default function ExcelInsightsPage() {
         }
       });
     }
-
-    // Filter by Shift
-    if (dateColumn && selectedShifts.size < 4) { // Only filter if not all shifts selected
-      dataAfterDateFilters = dataAfterDateFilters.filter(row => {
-        const val = row[dateColumn];
-        if (!(val instanceof Date)) return false;
-        const shift = getShiftForDate(val);
-        return shift && selectedShifts.has(shift);
-      });
-    }
-
     setFilteredData(dataAfterDateFilters);
-  }, [fileData, dateFilter, dateColumn, constantFilters, dateRange, selectedShifts]);
+  }, [fileData, dateFilter, dateColumn, constantFilters, dateRange]);
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -400,8 +388,6 @@ export default function ExcelInsightsPage() {
                 setDateColumn={setDateColumn}
                 dateRange={dateRange}
                 setDateRange={setDateRange}
-                selectedShifts={selectedShifts}
-                setSelectedShifts={setSelectedShifts}
                 constantFilters={constantFilters}
                 setConstantFilters={setConstantFilters}
                 onMainFileSelect={(f) => { handleFile(f); addAuditLog('File Uploaded', f.name); }}

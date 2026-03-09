@@ -24,6 +24,13 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DateRange } from "react-day-picker"
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 
 interface AnalyticsDashboardProps {
     data: ProductionRow[]
@@ -49,6 +56,9 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
     // Option to filter packed chart by date range
     const [dateRange, setDateRange] = React.useState<DateRange | undefined>()
 
+    // Option to filter packed chart by Item Description (Artículo)
+    const [selectedItem, setSelectedItem] = React.useState<string>("all")
+
     const toggleShift = (id: string) => {
         setActiveShifts(prev => {
             const next = new Set(prev)
@@ -57,16 +67,55 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
         })
     }
 
+    // Build a map of job prefix to Item Description for filtering
+    const jobPrefixToItem = React.useMemo(() => {
+        const map = new Map<string, string>()
+        data.forEach(row => {
+            if (row['Job Number'] && row['Item Description']) {
+                // Assuming standard prefix like "1234567-01", extract just the first part if needed, 
+                // but usually the Excel has the full base Job Number
+                map.set(String(row['Job Number']), String(row['Item Description']))
+            }
+        })
+        return map
+    }, [data])
+
+    // Get list of unique items currently packed
+    const availableItems = React.useMemo(() => {
+        const items = new Set<string>()
+        packedSerials.forEach((_, serial) => {
+            // serial format: "1234567-01-001" -> extract "1234567-01"
+            const parts = serial.split('-')
+            if (parts.length >= 2) {
+                const jobPrefix = `${parts[0]}-${parts[1]}`
+                const itemDesc = jobPrefixToItem.get(jobPrefix)
+                if (itemDesc) items.add(itemDesc)
+            }
+        })
+        return Array.from(items).sort()
+    }, [packedSerials, jobPrefixToItem])
+
     // Calculate packed count per shift
     const packByShift = React.useMemo(() => {
         if (!packedSerials.size) return []
         const counts: Record<string, number> = {}
 
-        packedSerials.forEach((date) => {
+        packedSerials.forEach((date, serial) => {
             if (dateRange?.from) {
                 const dFrom = startOfDay(dateRange.from)
                 const dTo = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from)
                 if (date < dFrom || date > dTo) return
+            }
+
+            if (selectedItem !== "all") {
+                const parts = serial.split('-')
+                if (parts.length >= 2) {
+                    const jobPrefix = `${parts[0]}-${parts[1]}`
+                    const itemDesc = jobPrefixToItem.get(jobPrefix)
+                    if (itemDesc !== selectedItem) return
+                } else {
+                    return // Cannot determine item
+                }
             }
 
             const shift = getShiftForDate(date)
@@ -78,7 +127,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             .filter(s => activeShifts.has(s.id))
             .map(s => ({ name: s.id, value: counts[s.id] || 0, color: SHIFT_COLORS[s.id] }))
             .filter(d => d.value > 0)
-    }, [packedSerials, activeShifts, dateRange])
+    }, [packedSerials, activeShifts, dateRange, selectedItem, jobPrefixToItem])
 
     const totalPackedFiltered = packByShift.reduce((a, b) => a + b.value, 0)
 
@@ -163,6 +212,23 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                 </CardDescription>
                             </div>
                             <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                                {availableItems.length > 0 && (
+                                    <div className="w-[200px] shrink-0">
+                                        <Select value={selectedItem} onValueChange={setSelectedItem}>
+                                            <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue placeholder="Todos los artículos" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="all">Todos los artículos</SelectItem>
+                                                {availableItems.map(item => (
+                                                    <SelectItem key={item} value={item} className="text-xs">
+                                                        {item}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                )}
                                 <div className="w-[200px] shrink-0">
                                     <DatePickerWithRange date={dateRange} setDate={setDateRange} />
                                 </div>
