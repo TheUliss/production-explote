@@ -26,6 +26,21 @@ import { Alert, AlertDescription, AlertTitle } from './ui/alert';
 import type { ProductionRow } from '@/lib/types';
 import { useProductionFilters } from '@/hooks/use-production-filters';
 
+/** Count how many serials belonging to `row` exist in `packedSerials`. */
+function countPackedForRow(row: any, packedSerials: Set<string>): { packed: number; total: number } {
+    if (!packedSerials.size) return { packed: 0, total: 0 };
+    const jobNumber = row['Job Number']?.toString();
+    const qty = parseInt(row['Qty Ordered'] ?? '0', 10);
+    if (!jobNumber || isNaN(qty) || qty <= 0) return { packed: 0, total: qty || 0 };
+    const padLength = Math.max(3, String(qty).length);
+    let packed = 0;
+    for (let i = 1; i <= qty; i++) {
+        const serial = `${jobNumber}-01-${i.toString().padStart(padLength, '0')}`;
+        if (packedSerials.has(serial)) packed++;
+    }
+    return { packed, total: qty };
+}
+
 /** Highlights occurrences of `term` inside `text` with a <mark> element. */
 function HighlightText({ text, term }: { text: string; term: string }) {
     if (!term.trim()) return <>{text}</>;
@@ -544,6 +559,14 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                     </div>
                                                 </TableHead>
                                             ))}
+                                            {packedSerials.size > 0 && (
+                                                <TableHead className="whitespace-nowrap text-emerald-700 bg-emerald-50" title="Seriales empacados de este job">
+                                                    <div className="flex items-center gap-1">
+                                                        <CheckCircle2 className="h-3.5 w-3.5" />
+                                                        Empacados
+                                                    </div>
+                                                </TableHead>
+                                            )}
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -578,6 +601,38 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                             </TableCell>
                                                         );
                                                     })}
+                                                    {packedSerials.size > 0 && (() => {
+                                                        const { packed, total } = countPackedForRow(row, packedSerials);
+                                                        const pct = total > 0 ? Math.round((packed / total) * 100) : 0;
+                                                        const isComplete = pct === 100;
+                                                        const barColor = isComplete
+                                                            ? 'bg-emerald-500'
+                                                            : pct > 0
+                                                                ? 'bg-blue-400'
+                                                                : 'bg-gray-200';
+                                                        return (
+                                                            <TableCell className="bg-emerald-50/60">
+                                                                <div
+                                                                    title={`${packed} de ${total} empacados (${pct}%)`}
+                                                                    className="flex items-center gap-2 cursor-default"
+                                                                >
+                                                                    {/* Mini progress bar */}
+                                                                    <div className="relative w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                                        <div
+                                                                            className={cn('absolute left-0 top-0 h-full rounded-full transition-all', barColor)}
+                                                                            style={{ width: `${pct}%` }}
+                                                                        />
+                                                                    </div>
+                                                                    <span className={cn(
+                                                                        'text-xs font-semibold tabular-nums',
+                                                                        isComplete ? 'text-emerald-700' : packed > 0 ? 'text-blue-700' : 'text-gray-400'
+                                                                    )}>
+                                                                        {packed}/{total}
+                                                                    </span>
+                                                                </div>
+                                                            </TableCell>
+                                                        );
+                                                    })()}
                                                 </TableRow>
                                             )
                                         }) : (
