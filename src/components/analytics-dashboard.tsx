@@ -214,31 +214,46 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     {totalPackedFiltered.toLocaleString()} seriales en la selección
                                 </CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
-                                {availableItems.length > 0 && (
-                                    <div className="w-[200px] shrink-0">
-                                        <Select value={selectedItem} onValueChange={setSelectedItem}>
-                                            <SelectTrigger className="h-8 text-xs">
-                                                <SelectValue placeholder="Todos los artículos" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="all">Todos los artículos</SelectItem>
-                                                {availableItems.map(item => (
-                                                    <SelectItem key={item} value={item} className="text-xs">
+                            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                                <div className="w-full sm:w-[180px]">
+                                    <Select value={selectedItem} onValueChange={setSelectedItem}>
+                                        <SelectTrigger className="h-8 text-[11px]">
+                                            <SelectValue placeholder="Filtrar por Artículo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="all">Todos los artículos</SelectItem>
+                                            {availableItems.length > 0 ? (
+                                                availableItems.map(item => (
+                                                    <SelectItem key={item} value={item} className="text-[11px]">
                                                         {item}
                                                     </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                                ))
+                                            ) : (
+                                                <SelectItem value="none" disabled>Sin artículos empacados</SelectItem>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                <div className="flex items-center gap-1.5 shrink-0 bg-muted/20 p-1 rounded-md border border-border/50">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 px-2 text-[10px] font-bold hover:bg-primary/10"
+                                        onClick={() => {
+                                            const today = startOfToday();
+                                            setStartDate(today);
+                                            setEndDate(today);
+                                        }}
+                                    >
+                                        Hoy
+                                    </Button>
+                                    <div className="w-[125px]">
+                                        <DatePicker date={startDate} setDate={setStartDate} label="Desde" />
                                     </div>
-                                )}
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <div className="w-[140px]">
-                                        <DatePicker date={startDate} setDate={setStartDate} label="Fecha Inicial" />
-                                    </div>
-                                    <span className="text-muted-foreground text-xs font-medium">a</span>
-                                    <div className="w-[140px]">
-                                        <DatePicker date={endDate} setDate={setEndDate} label="Fecha Final" />
+                                    <span className="text-muted-foreground text-[10px]">al</span>
+                                    <div className="w-[125px]">
+                                        <DatePicker date={endDate} setDate={setEndDate} label="Hasta" />
                                     </div>
                                 </div>
                                 {/* Shift toggle buttons */}
