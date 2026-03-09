@@ -22,8 +22,7 @@ import type { ProductionRow } from "@/lib/types"
 import { getShiftForDate, SHIFTS } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { DateRange } from "react-day-picker"
-import { DatePickerWithRange } from "@/components/ui/date-range-picker"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
     Select,
     SelectContent,
@@ -53,8 +52,9 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
         new Set(SHIFTS.map(s => s.id))
     )
 
-    // Option to filter packed chart by date range
-    const [dateRange, setDateRange] = React.useState<DateRange | undefined>()
+    // Option to filter packed chart by date range (start and end)
+    const [startDate, setStartDate] = React.useState<Date | undefined>()
+    const [endDate, setEndDate] = React.useState<Date | undefined>()
 
     // Option to filter packed chart by Item Description (Artículo)
     const [selectedItem, setSelectedItem] = React.useState<string>("all")
@@ -101,10 +101,13 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
         const counts: Record<string, number> = {}
 
         packedSerials.forEach((date, serial) => {
-            if (dateRange?.from) {
-                const dFrom = startOfDay(dateRange.from)
-                const dTo = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from)
-                if (date < dFrom || date > dTo) return
+            if (startDate) {
+                const dFrom = startOfDay(startDate)
+                if (date < dFrom) return
+            }
+            if (endDate) {
+                const dTo = endOfDay(endDate)
+                if (date > dTo) return
             }
 
             if (selectedItem !== "all") {
@@ -127,7 +130,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             .filter(s => activeShifts.has(s.id))
             .map(s => ({ name: s.id, value: counts[s.id] || 0, color: SHIFT_COLORS[s.id] }))
             .filter(d => d.value > 0)
-    }, [packedSerials, activeShifts, dateRange, selectedItem, jobPrefixToItem])
+    }, [packedSerials, activeShifts, startDate, endDate, selectedItem, jobPrefixToItem])
 
     const totalPackedFiltered = packByShift.reduce((a, b) => a + b.value, 0)
 
@@ -229,8 +232,14 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                         </Select>
                                     </div>
                                 )}
-                                <div className="w-[200px] shrink-0">
-                                    <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <div className="w-[140px]">
+                                        <DatePicker date={startDate} setDate={setStartDate} label="Fecha Inicial" />
+                                    </div>
+                                    <span className="text-muted-foreground text-xs font-medium">a</span>
+                                    <div className="w-[140px]">
+                                        <DatePicker date={endDate} setDate={setEndDate} label="Fecha Final" />
+                                    </div>
                                 </div>
                                 {/* Shift toggle buttons */}
                                 <div className="flex flex-wrap gap-1.5">
