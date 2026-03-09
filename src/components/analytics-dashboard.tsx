@@ -60,9 +60,9 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             { name: "A tiempo", value: onTime, color: "#22c55e" }
         ]
 
-        // 3. Daily Volume (Area Chart: Next 10 days)
+        // 3. Daily Volume (Area Chart: Last 7 days + next 10 days)
         const daily: Record<string, { qty: number, packed: number }> = {}
-        for (let i = -2; i < 10; i++) {
+        for (let i = -7; i < 10; i++) {
             const d = addDays(today, i)
             daily[format(d, "MMM dd")] = { qty: 0, packed: 0 }
         }
@@ -100,7 +100,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             <Card className="lg:col-span-2">
                 <CardHeader>
                     <CardTitle className="text-sm font-medium">Volumen de Producción (Piezas x Día)</CardTitle>
-                    <CardDescription>Comparativa entre Carga Programada vs Empacado Real (últimos 2 días y próximos 10)</CardDescription>
+                    <CardDescription>Comparativa entre Carga Programada vs Empacado Real (últimos 7 días y próximos 10)</CardDescription>
                 </CardHeader>
                 <CardContent className="h-[250px]">
                     <ResponsiveContainer width="100%" height="100%">
