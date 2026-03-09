@@ -17,11 +17,13 @@ import {
     Area
 } from "recharts"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { format, addDays, startOfToday } from "date-fns"
+import { format, addDays, startOfToday, isWithinInterval, startOfDay, endOfDay } from "date-fns"
 import type { ProductionRow } from "@/lib/types"
 import { getShiftForDate, SHIFTS } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { DateRange } from "react-day-picker"
+import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 
 interface AnalyticsDashboardProps {
     data: ProductionRow[]
@@ -44,6 +46,9 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
         new Set(SHIFTS.map(s => s.id))
     )
 
+    // Option to filter packed chart by date range
+    const [dateRange, setDateRange] = React.useState<DateRange | undefined>()
+
     const toggleShift = (id: string) => {
         setActiveShifts(prev => {
             const next = new Set(prev)
@@ -56,7 +61,14 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
     const packByShift = React.useMemo(() => {
         if (!packedSerials.size) return []
         const counts: Record<string, number> = {}
+
         packedSerials.forEach((date) => {
+            if (dateRange?.from) {
+                const dFrom = startOfDay(dateRange.from)
+                const dTo = dateRange.to ? endOfDay(dateRange.to) : endOfDay(dateRange.from)
+                if (date < dFrom || date > dTo) return
+            }
+
             const shift = getShiftForDate(date)
             if (shift && shift !== 'all') {
                 counts[shift] = (counts[shift] || 0) + 1
@@ -64,9 +76,9 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
         })
         return SHIFTS
             .filter(s => activeShifts.has(s.id))
-            .map(s => ({ name: s.id, label: s.label, value: counts[s.id] || 0, color: SHIFT_COLORS[s.id] }))
+            .map(s => ({ name: s.id, value: counts[s.id] || 0, color: SHIFT_COLORS[s.id] }))
             .filter(d => d.value > 0)
-    }, [packedSerials, activeShifts])
+    }, [packedSerials, activeShifts, dateRange])
 
     const totalPackedFiltered = packByShift.reduce((a, b) => a + b.value, 0)
 
@@ -150,24 +162,29 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     {totalPackedFiltered.toLocaleString()} seriales en la selección
                                 </CardDescription>
                             </div>
-                            {/* Shift toggle buttons */}
-                            <div className="flex flex-wrap gap-1.5">
-                                {SHIFTS.map(s => (
-                                    <Button
-                                        key={s.id}
-                                        size="sm"
-                                        variant={activeShifts.has(s.id) ? 'default' : 'outline'}
-                                        className={cn(
-                                            'h-7 px-2.5 text-xs font-bold transition-all',
-                                            activeShifts.has(s.id) && 'text-white'
-                                        )}
-                                        style={activeShifts.has(s.id) ? { background: SHIFT_COLORS[s.id], borderColor: SHIFT_COLORS[s.id] } : {}}
-                                        onClick={() => toggleShift(s.id)}
-                                        title={s.label}
-                                    >
-                                        {s.id}
-                                    </Button>
-                                ))}
+                            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+                                <div className="w-[200px] shrink-0">
+                                    <DatePickerWithRange date={dateRange} setDate={setDateRange} />
+                                </div>
+                                {/* Shift toggle buttons */}
+                                <div className="flex flex-wrap gap-1.5">
+                                    {SHIFTS.map(s => (
+                                        <Button
+                                            key={s.id}
+                                            size="sm"
+                                            variant={activeShifts.has(s.id) ? 'default' : 'outline'}
+                                            className={cn(
+                                                'h-7 px-2.5 text-xs font-bold transition-all',
+                                                activeShifts.has(s.id) && 'text-white'
+                                            )}
+                                            style={activeShifts.has(s.id) ? { background: SHIFT_COLORS[s.id], borderColor: SHIFT_COLORS[s.id] } : {}}
+                                            onClick={() => toggleShift(s.id)}
+                                            title={s.label}
+                                        >
+                                            {s.id}
+                                        </Button>
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     </CardHeader>
@@ -199,11 +216,10 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     <Tooltip
                                         formatter={(value: number, name: string) => [
                                             `${value} seriales`,
-                                            SHIFTS.find(s => s.id === name)?.label ?? name
+                                            name
                                         ]}
                                     />
                                     <Legend
-                                        formatter={(value) => SHIFTS.find(s => s.id === value)?.label ?? value}
                                         verticalAlign="bottom"
                                         height={36}
                                     />
