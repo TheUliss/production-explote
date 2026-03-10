@@ -91,6 +91,47 @@ export function DataTable({
     const [pageInputValue, setPageInputValue] = React.useState('1');
     const { toast } = useToast();
 
+    // --- Column Resizing Logic ---
+    const [columnWidths, setColumnWidths] = React.useState<Record<string, number>>(() => {
+        if (typeof window === 'undefined') return {};
+        const saved = localStorage.getItem('prod-extractor-col-widths');
+        return saved ? JSON.parse(saved) : {};
+    });
+    const [resizingColumn, setResizingColumn] = React.useState<string | null>(null);
+    const startX = React.useRef(0);
+    const startWidth = React.useRef(0);
+
+    const handleMouseDown = (e: React.MouseEvent, columnId: string) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setResizingColumn(columnId);
+        startX.current = e.pageX;
+        startWidth.current = columnWidths[columnId] || 150;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            const deltaX = moveEvent.pageX - startX.current;
+            const newWidth = Math.max(50, startWidth.current + deltaX);
+            setColumnWidths(prev => ({
+                ...prev,
+                [columnId]: newWidth
+            }));
+        };
+
+        const onMouseUp = () => {
+            setResizingColumn(null);
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            // Save to persistence
+            setColumnWidths(current => {
+                localStorage.setItem('prod-extractor-col-widths', JSON.stringify(current));
+                return current;
+            });
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    };
+
     // Debounce search query by 200ms to avoid re-filtering on every keystroke
     React.useEffect(() => {
         const t = setTimeout(() => setDebouncedSearch(searchQuery), 200);
@@ -529,10 +570,10 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
 
                             {/* Table */}
                             <ScrollArea className="h-[50vh] rounded-md border relative bg-white">
-                                <table className="w-full caption-bottom text-sm text-gray-700">
+                                <table className="w-full caption-bottom text-sm text-gray-700 table-fixed">
                                     <TableHeader className="sticky top-0 bg-gray-100 z-10 shadow-sm text-gray-800">
                                         <TableRow>
-                                            <TableHead className="w-12 px-4">
+                                            <TableHead className="w-12 px-4 shrink-0">
                                                 <Checkbox
                                                     checked={allSelected ? true : (someSelected ? 'indeterminate' : false)}
                                                     onCheckedChange={handleSelectAll}
@@ -540,31 +581,47 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                     aria-label="Select all rows"
                                                 />
                                             </TableHead>
-                                            <TableHead className="w-10 px-0" title="Riesgo de Atraso">Risk</TableHead>
+                                            <TableHead className="w-10 px-0 shrink-0" title="Riesgo de Atraso">Risk</TableHead>
                                             {orderedVisibleColumns.map((header) => (
                                                 <TableHead
                                                     key={header}
-                                                    className={cn(
-                                                        "cursor-pointer hover:bg-gray-200 transition-colors whitespace-nowrap",
-                                                        header === 'Item Description' && 'min-w-[300px]'
-                                                    )}
-                                                    onClick={() => handleSort(header)}
+                                                    style={{ width: columnWidths[header] || 150 }}
+                                                    className="relative cursor-pointer hover:bg-gray-200 transition-colors group p-0"
                                                 >
-                                                    <div className="flex items-center gap-1">
-                                                        {header}
+                                                    <div
+                                                        className="flex items-center gap-1 px-4 py-3 h-full truncate"
+                                                        onClick={() => handleSort(header)}
+                                                    >
+                                                        <span className="truncate flex-1">{header}</span>
                                                         <ArrowUpDown className={cn(
-                                                            "h-4 w-4 shrink-0",
-                                                            sortColumn === header ? "text-primary" : "text-gray-400"
+                                                            "h-3 w-3 shrink-0 opacity-50 group-hover:opacity-100",
+                                                            sortColumn === header ? "text-primary opacity-100" : "text-gray-400"
                                                         )} />
                                                     </div>
+                                                    {/* Resizer Handle */}
+                                                    <div
+                                                        onMouseDown={(e) => handleMouseDown(e, header)}
+                                                        className={cn(
+                                                            "absolute right-0 top-0 h-full w-1 border-r border-transparent cursor-col-resize hover:border-primary hover:bg-primary/20 transition-all z-20",
+                                                            resizingColumn === header && "border-primary bg-primary/30 w-1.5"
+                                                        )}
+                                                    />
                                                 </TableHead>
                                             ))}
                                             {packedSerials.size > 0 && (
-                                                <TableHead className="whitespace-nowrap text-emerald-700 bg-emerald-50" title="Seriales empacados de este job">
-                                                    <div className="flex items-center gap-1">
-                                                        <CheckCircle2 className="h-3.5 w-3.5" />
-                                                        Empacados
+                                                <TableHead
+                                                    style={{ width: columnWidths['__packed'] || 140 }}
+                                                    className="relative whitespace-nowrap text-emerald-700 bg-emerald-50 p-0 group"
+                                                    title="Seriales empacados de este job"
+                                                >
+                                                    <div className="flex items-center gap-1 px-4 py-3 h-full truncate">
+                                                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                                                        <span className="truncate">Empacados</span>
                                                     </div>
+                                                    <div
+                                                        onMouseDown={(e) => handleMouseDown(e, '__packed')}
+                                                        className="absolute right-0 top-0 h-full w-1 cursor-col-resize hover:bg-emerald-400/50 z-20"
+                                                    />
                                                 </TableHead>
                                             )}
                                         </TableRow>
@@ -596,7 +653,7 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                             ? val.toLocaleDateString()
                                                             : (val?.toString() ?? '');
                                                         return (
-                                                            <TableCell key={header}>
+                                                            <TableCell key={header} className="truncate">
                                                                 <HighlightText text={cellText} term={debouncedSearch} />
                                                             </TableCell>
                                                         );
@@ -611,20 +668,20 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                                                 ? 'bg-blue-400'
                                                                 : 'bg-gray-200';
                                                         return (
-                                                            <TableCell className="bg-emerald-50/60">
+                                                            <TableCell className="bg-emerald-50/60 truncate">
                                                                 <div
                                                                     title={`${packed} de ${total} empacados (${pct}%)`}
                                                                     className="flex items-center gap-2 cursor-default"
                                                                 >
                                                                     {/* Mini progress bar */}
-                                                                    <div className="relative w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                                                    <div className="relative w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden shrink-0">
                                                                         <div
                                                                             className={cn('absolute left-0 top-0 h-full rounded-full transition-all', barColor)}
                                                                             style={{ width: `${pct}%` }}
                                                                         />
                                                                     </div>
                                                                     <span className={cn(
-                                                                        'text-xs font-semibold tabular-nums',
+                                                                        'text-[11px] font-semibold tabular-nums truncate',
                                                                         isComplete ? 'text-emerald-700' : packed > 0 ? 'text-blue-700' : 'text-gray-400'
                                                                     )}>
                                                                         {packed}/{total}
@@ -637,7 +694,7 @@ JOB's a vencer prox 7 dias: ${summaryStats.dueSoon7Jobs}
                                             )
                                         }) : (
                                             <TableRow>
-                                                <TableCell colSpan={orderedVisibleColumns.length + 1} className="h-24 text-center">
+                                                <TableCell colSpan={orderedVisibleColumns.length + 3} className="h-24 text-center">
                                                     No results.
                                                 </TableCell>
                                             </TableRow>
