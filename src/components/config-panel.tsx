@@ -9,7 +9,7 @@ import { Label } from './ui/label';
 import { ScrollArea } from './ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X, Save, FolderOpen, Trash2, Loader2, FileUp, FileDown, Search, Trash, CheckCircle, Clock as ClockIcon } from 'lucide-react';
+import { Columns, Filter, MinusCircle, PlusCircle, ChevronDown, Eye, EyeOff, GripVertical, Plus, X, Save, FolderOpen, Trash2, Loader2, FileUp, FileDown, Search, Trash, CheckCircle, Clock as ClockIcon, RefreshCcw } from 'lucide-react';
 import * as xlsx from 'xlsx';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from './ui/collapsible';
 import { useIsMobile } from '@/hooks/use-mobile';
@@ -317,7 +317,28 @@ export function ConfigPanel({
             </div>
 
             {/* Quick Actions (Utility) — only Limpiar remains here */}
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-[11px] px-2 text-primary hover:bg-primary/5"
+                asChild
+              >
+                <label className="cursor-pointer flex items-center gap-1.5">
+                  <RefreshCcw className="h-3.5 w-3.5" />
+                  Actualizar Archivo
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".xlsx, .xls"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) onMainFileSelect(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"

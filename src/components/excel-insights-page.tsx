@@ -9,7 +9,7 @@ import { ConfigPanel } from '@/components/config-panel';
 import { AnalyticsDashboard } from '@/components/analytics-dashboard';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/data-table';
-import { Loader2, BarChart3, ChevronUp, ChevronDown, CloudUpload, CloudDownload, Users, Globe, FileUp, TableIcon } from 'lucide-react';
+import { Loader2, BarChart3, ChevronUp, ChevronDown, Users, Globe, FileUp, TableIcon, RefreshCcw } from 'lucide-react';
 import { dbService } from '@/lib/db-service';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -395,27 +395,6 @@ export default function ExcelInsightsPage() {
                 onClear={() => { resetFileUpload(); addAuditLog('System', 'All data cleared'); }}
                 packedCount={packedSerials.size}
               />
-              <div className="mt-4 p-4 border rounded-md bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800">
-                <div className="flex items-center gap-2 mb-2">
-                  <Globe className="h-4 w-4 text-blue-600" />
-                  <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Nube</span>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="w-full bg-white dark:bg-background h-8 text-xs border-blue-200"
-                  onClick={() => { handleCloudSync(); addAuditLog('Sync', 'Configuration synced to cloud'); }}
-                  disabled={isSyncing || !fileData}
-                >
-                  {isSyncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <CloudUpload className="h-3 w-3 mr-1" />}
-                  Sincronizar
-                </Button>
-                {lastSyncedAt && (
-                  <p className="text-[10px] text-muted-foreground mt-1 text-center">
-                    Última sync: {lastSyncedAt.toLocaleString()}
-                  </p>
-                )}
-              </div>
 
               {/* Audit Log Trigger */}
               <div className="mt-4">
@@ -442,15 +421,6 @@ export default function ExcelInsightsPage() {
               {!fileData ? (
                 <div className="flex flex-col items-center justify-center p-8 bg-card rounded-xl border-2 border-dashed h-full min-h-[60vh] transition-all hover:bg-muted/5">
                   <FileUpload onFileSelect={(f) => { handleFile(f); addAuditLog('File Uploaded', f.name); }} />
-                  <div className="mt-12 flex flex-col items-center gap-4 border-t pt-8 w-full max-w-md opacity-60">
-                    <span className="text-[10px] uppercase font-bold tracking-[0.2em]">Opciones Rápidas</span>
-                    <div className="flex gap-4">
-                      <Button variant="outline" size="sm" onClick={() => { loadFromCloud(); addAuditLog('Load Cloud', 'Configuration loaded from cloud'); }}>
-                        <CloudDownload className="mr-2 h-4 w-4 text-blue-500" />
-                        De la Nube
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               ) : (
                 <>
