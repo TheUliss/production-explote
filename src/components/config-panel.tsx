@@ -75,9 +75,12 @@ interface ConfigPanelProps {
   setConstantFilters: React.Dispatch<React.SetStateAction<ConstantFilter[]>>;
   onMainFileSelect: (file: File) => void;
   onPackingFileSelect: (file: File) => void;
+  onClearPacking?: () => void;
   onClear: () => void;
   /** Number of packed serials currently loaded — used to know if packing file is active */
   packedCount: number;
+  /** When true, renders content without the Card/Collapsible wrapper (for use inside the mobile drawer) */
+  inDrawer?: boolean;
 }
 
 function SortableItem({ id }: { id: string }) {
@@ -129,8 +132,10 @@ export function ConfigPanel({
   setConstantFilters,
   onMainFileSelect,
   onPackingFileSelect,
+  onClearPacking,
   onClear,
   packedCount,
+  inDrawer = false,
 }: ConfigPanelProps) {
   const isMobile = useIsMobile();
   const [isOpen, setIsOpen] = React.useState(true);
@@ -251,28 +256,9 @@ export function ConfigPanel({
     setConstantFilters(constantFilters.filter(f => f.id !== id));
   };
 
-  return (
-    <Card className="sticky top-6">
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-        <div className="flex items-center justify-between p-6 pb-2">
-          <div className="space-y-1.5">
-            <CardTitle className="text-xl font-bold">Configuración</CardTitle>
-            <CardDescription className="truncate max-w-[200px]" title={fileName}>
-              {fileName}
-            </CardDescription>
-          </div>
-
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-9 p-0">
-              <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", !isOpen && "-rotate-90")} />
-              <span className="sr-only">Toggle</span>
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-
-        <CollapsibleContent>
-          <CardContent className="space-y-6 pt-0">
-            {/* View Profiles Section */}
+  // The inner content (shared by both Card and Drawer modes)
+  const panelContent = (
+    <div className="space-y-6">
             <div className="space-y-3">
               <Label className="text-xs font-semibold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
                 <Save className="h-3 w-3" /> Perfiles de Vista
@@ -316,15 +302,15 @@ export function ConfigPanel({
               </div>
             </div>
 
-            {/* Quick Actions (Utility) — only Limpiar remains here */}
-            <div className="flex justify-end gap-2">
+            {/* Quick Actions (Utility) */}
+            <div className="flex flex-col sm:flex-row justify-end gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-[11px] px-2 text-primary hover:bg-primary/5"
+                className="h-9 text-xs px-3 text-primary hover:bg-primary/5 w-full sm:w-auto"
                 asChild
               >
-                <label className="cursor-pointer flex items-center gap-1.5">
+                <label className="cursor-pointer flex items-center justify-center gap-1.5">
                   <RefreshCcw className="h-3.5 w-3.5" />
                   Actualizar Archivo
                   <input
@@ -342,7 +328,7 @@ export function ConfigPanel({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 text-[11px] px-2 text-destructive hover:bg-destructive/10"
+                className="h-9 text-xs px-3 text-destructive hover:bg-destructive/10 w-full sm:w-auto"
                 onClick={() => setShowClearConfirm(true)}
                 disabled={fileName === 'Unknown file'}
               >
@@ -377,7 +363,7 @@ export function ConfigPanel({
               <Separator className="my-2" />
 
               <div className="mb-4">
-                <ScrollArea className="h-64 rounded-md border bg-muted/10 p-2">
+                <ScrollArea className="h-48 md:h-64 rounded-md border bg-muted/10 p-2">
                   <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -467,13 +453,13 @@ export function ConfigPanel({
                       <Button
                         variant="ghost"
                         size="icon"
-                        className={cn("h-7 w-7 shrink-0", filter.enabled === false ? "text-muted-foreground opacity-30" : "text-primary")}
+                        className={cn("h-8 w-8 shrink-0", filter.enabled === false ? "text-muted-foreground opacity-30" : "text-primary")}
                         onClick={() => toggleConstantFilter(filter.id)}
                       >
                         {filter.enabled === false ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </Button>
                       <Select value={filter.column} onValueChange={(val) => updateConstantFilter(filter.id, 'column', val)}>
-                        <SelectTrigger className="flex-1 h-7 text-[10px]">
+                        <SelectTrigger className="flex-1 h-8 text-[10px]">
                           <SelectValue placeholder="Col" />
                         </SelectTrigger>
                         <SelectContent>
@@ -484,9 +470,9 @@ export function ConfigPanel({
                         placeholder="Valor..."
                         value={filter.value}
                         onChange={(e) => updateConstantFilter(filter.id, 'value', e.target.value)}
-                        className={cn("flex-1 h-7 text-[10px]", filter.enabled === false && "opacity-30 line-through")}
+                        className={cn("flex-1 h-8 text-[10px]", filter.enabled === false && "opacity-30 line-through")}
                       />
-                      <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={() => removeConstantFilter(filter.id)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => removeConstantFilter(filter.id)}>
                         <MinusCircle className="h-3.5 w-3.5 text-destructive" />
                       </Button>
                     </div>
@@ -542,33 +528,84 @@ export function ConfigPanel({
                 >
                   <FileDown className="h-3.5 w-3.5" />
                 </Button>
+                {packedCount > 0 && onClearPacking && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    title="Borrar archivo de empaque"
+                    onClick={onClearPacking}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
               </div>
 
             </div>
+    </div>
+  );
+
+  // Confirmation dialog — always rendered regardless of mode
+  const confirmDialog = (
+    <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>¿Eliminar todos los datos?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Esta acción eliminará el archivo cargado, los filtros, las columnas seleccionadas y los seriales de empaque. No se puede deshacer.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            onClick={() => { onClear(); setShowClearConfirm(false); }}
+          >
+            Sí, limpiar todo
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+
+  // ── Drawer mode: render content directly without Card/Collapsible ──
+  if (inDrawer) {
+    return (
+      <>
+        {panelContent}
+        {confirmDialog}
+      </>
+    );
+  }
+
+  // ── Desktop/sidebar mode: render inside a sticky Card with Collapsible ──
+  return (
+    <Card className="sticky top-6">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex items-center justify-between p-6 pb-2">
+          <div className="space-y-1.5">
+            <CardTitle className="text-xl font-bold">Configuración</CardTitle>
+            <CardDescription className="truncate max-w-[200px]" title={fileName}>
+              {fileName}
+            </CardDescription>
+          </div>
+
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-9 p-0">
+              <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", !isOpen && "-rotate-90")} />
+              <span className="sr-only">Toggle</span>
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+
+        <CollapsibleContent>
+          <CardContent className="space-y-6 pt-0">
+            {panelContent}
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
 
-      {/* Clear Confirmation Dialog */}
-      <AlertDialog open={showClearConfirm} onOpenChange={setShowClearConfirm}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar todos los datos?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta acción eliminará el archivo cargado, los filtros, las columnas seleccionadas y los seriales de empaque. No se puede deshacer.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => { onClear(); setShowClearConfirm(false); }}
-            >
-              Sí, limpiar todo
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {confirmDialog}
     </Card>
   );
 }

@@ -9,12 +9,12 @@ import { ConfigPanel } from '@/components/config-panel';
 import { AnalyticsDashboard } from '@/components/analytics-dashboard';
 import { Button } from '@/components/ui/button';
 import { DataTable } from '@/components/data-table';
-import { Loader2, BarChart3, ChevronUp, ChevronDown, Users, Globe, FileUp, TableIcon, RefreshCcw } from 'lucide-react';
+import { Loader2, BarChart3, ChevronUp, Settings2, RefreshCcw } from 'lucide-react';
 import { dbService } from '@/lib/db-service';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { read, utils } from 'xlsx';
-import { startOfToday, isValid, addDays, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
+import { isValid, isWithinInterval } from 'date-fns';
 import { useOverdueNotifications } from '@/hooks/use-overdue-notifications';
 import { DateRange } from 'react-day-picker';
 import { getShiftForDate } from '@/lib/types';
@@ -70,6 +70,7 @@ export default function ExcelInsightsPage() {
 
   // Packing Data
   const [packedSerials, setPackedSerials] = useState<Map<string, Date>>(new Map());
+  const [packedData, setPackedData] = useState<any[]>([]);
 
   // UI States
   const [showAnalytics, setShowAnalytics] = useState(true);
@@ -180,6 +181,7 @@ export default function ExcelInsightsPage() {
     setHeaders([]);
     setSelectedColumns([]);
     setPackedSerials(new Map());
+    setPackedData([]);
     setFilteredData(null);
     setDataForSummaries(null);
     setPersistedFileName(null);
@@ -194,6 +196,7 @@ export default function ExcelInsightsPage() {
   const handlePackingFile = useCallback((selectedFile: File) => {
     if (selectedFile.size === 0) {
       setPackedSerials(new Map());
+      setPackedData([]);
       return;
     }
     const reader = new FileReader();
@@ -213,6 +216,7 @@ export default function ExcelInsightsPage() {
         }
       });
       setPackedSerials(serialMap);
+      setPackedData(data);
       toast({ title: "Empaque cargado", description: `${serialMap.size} seriales cargados.` });
     };
     reader.readAsBinaryString(selectedFile);
@@ -360,41 +364,105 @@ export default function ExcelInsightsPage() {
     setFilteredData(dataAfterDateFilters);
   }, [fileData, dateFilter, dateColumn, constantFilters, dateRange]);
 
+  const [mobileConfigOpen, setMobileConfigOpen] = React.useState(false);
+
+  const configPanelProps = {
+    fileName: file?.name ?? persistedFileName ?? 'Unknown file',
+    headers,
+    selectedColumns,
+    setSelectedColumns,
+    dateFilter,
+    setDateFilter,
+    dateColumn,
+    setDateColumn,
+    dateRange,
+    setDateRange,
+    constantFilters,
+    setConstantFilters,
+    onMainFileSelect: (f: File) => { handleFile(f); addAuditLog('File Uploaded', f.name); setMobileConfigOpen(false); },
+    onPackingFileSelect: (f: File) => { handlePackingFile(f); addAuditLog('Packing File Uploaded', f.name); },
+    onClearPacking: () => { setPackedSerials(new Map()); setPackedData([]); addAuditLog('Packing', 'Packing file cleared'); },
+    onClear: () => { resetFileUpload(); addAuditLog('System', 'All data cleared'); setMobileConfigOpen(false); },
+    packedCount: packedSerials.size,
+  };
+
+  const activeFilterCount = constantFilters.filter(f => f.enabled !== false && f.column && f.value).length
+    + (dateFilter !== 'all' ? 1 : 0);
+
   return (
     <div className="flex flex-col min-h-screen">
-      <div className="relative">
+      {/* ── Mobile Top Bar ── */}
+      <div className="lg:hidden flex items-center justify-between px-4 py-2 border-b bg-background/95 backdrop-blur sticky top-0 z-40">
+        <div className="flex items-center gap-2">
+          <Sheet open={mobileConfigOpen} onOpenChange={setMobileConfigOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="sm" className="h-9 gap-2 relative">
+                <Settings2 className="h-4 w-4" />
+                <span className="text-xs font-medium">Opciones</span>
+                {activeFilterCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[85vw] max-w-sm p-0 flex flex-col overflow-y-auto">
+              <div className="p-4 border-b">
+                <SheetTitle className="text-base">Configuración</SheetTitle>
+                <SheetDescription className="text-xs truncate">{file?.name ?? persistedFileName ?? 'Sin archivo'}</SheetDescription>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <ConfigPanel {...configPanelProps} inDrawer={true} />
+                <div className="mt-2">
+                  <Sheet>
+                    <SheetTrigger asChild>
+                      <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground">
+                        <ScrollText className="mr-2 h-3.5 w-3.5" />
+                        Ver Registro de Actividad
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent>
+                      <SheetHeader>
+                        <SheetTitle>Registro de Actividad</SheetTitle>
+                        <SheetDescription>Acciones recientes en la sesión actual.</SheetDescription>
+                      </SheetHeader>
+                      <div className="mt-4">
+                        <AuditLog logs={auditLogs} />
+                      </div>
+                    </SheetContent>
+                  </Sheet>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+          {fileData && (
+            <span className="text-xs text-muted-foreground truncate max-w-[140px]">
+              {file?.name ?? persistedFileName ?? ''}
+            </span>
+          )}
+        </div>
+        <ThemeToggle />
+      </div>
+
+      {/* ── Desktop Header ── */}
+      <div className="hidden lg:block relative">
         <AppHeader />
         <div className="absolute top-4 right-4 z-50">
           <ThemeToggle />
         </div>
       </div>
-      <main className="flex-1 container mx-auto px-4 md:px-6 py-8">
+
+      <main className="flex-1 container mx-auto px-3 md:px-4 lg:px-6 py-4 lg:py-8">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center h-full gap-4">
             <Loader2 className="h-16 w-16 animate-spin text-primary" />
             <p className="text-lg text-muted-foreground">Procesando archivo...</p>
           </div>
         ) : (
-          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-6 lg:gap-8">
-            <div className="lg:col-span-4 xl:col-span-3">
-              <ConfigPanel
-                fileName={file?.name ?? persistedFileName ?? 'Unknown file'}
-                headers={headers}
-                selectedColumns={selectedColumns}
-                setSelectedColumns={setSelectedColumns}
-                dateFilter={dateFilter}
-                setDateFilter={setDateFilter}
-                dateColumn={dateColumn}
-                setDateColumn={setDateColumn}
-                dateRange={dateRange}
-                setDateRange={setDateRange}
-                constantFilters={constantFilters}
-                setConstantFilters={setConstantFilters}
-                onMainFileSelect={(f) => { handleFile(f); addAuditLog('File Uploaded', f.name); }}
-                onPackingFileSelect={(f) => { handlePackingFile(f); addAuditLog('Packing File Uploaded', f.name); }}
-                onClear={() => { resetFileUpload(); addAuditLog('System', 'All data cleared'); }}
-                packedCount={packedSerials.size}
-              />
+          <div className="flex flex-col lg:grid lg:grid-cols-12 gap-4 lg:gap-8">
+            {/* ── Desktop Sidebar (hidden on mobile) ── */}
+            <div className="hidden lg:block lg:col-span-4 xl:col-span-3">
+              <ConfigPanel {...configPanelProps} />
 
               {/* Audit Log Trigger */}
               <div className="mt-4">
@@ -417,21 +485,23 @@ export default function ExcelInsightsPage() {
                 </Sheet>
               </div>
             </div>
+
+            {/* ── Main Content ── */}
             <div className="lg:col-span-8 xl:col-span-9">
               {!fileData ? (
-                <div className="flex flex-col items-center justify-center p-8 bg-card rounded-xl border-2 border-dashed h-full min-h-[60vh] transition-all hover:bg-muted/5">
+                <div className="flex flex-col items-center justify-center p-6 md:p-8 bg-card rounded-xl border-2 border-dashed min-h-[60vh] transition-all hover:bg-muted/5">
                   <FileUpload onFileSelect={(f) => { handleFile(f); addAuditLog('File Uploaded', f.name); }} />
                 </div>
               ) : (
                 <>
-                  <div className="mb-4 flex justify-between items-center">
+                  <div className="mb-3 flex justify-between items-center">
                     <Button
                       variant="ghost"
                       size="sm"
                       onClick={() => setShowAnalytics(!showAnalytics)}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground text-xs md:text-sm"
                     >
-                      {showAnalytics ? <ChevronUp className="mr-2 h-4 w-4" /> : <BarChart3 className="mr-2 h-4 w-4" />}
+                      {showAnalytics ? <ChevronUp className="mr-1.5 h-4 w-4" /> : <BarChart3 className="mr-1.5 h-4 w-4" />}
                       {showAnalytics ? "Ocultar Análisis" : "Mostrar Análisis"}
                     </Button>
                   </div>
@@ -445,7 +515,11 @@ export default function ExcelInsightsPage() {
                     originalData={fileData}
                     dataForSummaries={dataForSummaries}
                     packedSerials={new Set(packedSerials.keys())}
+                    packedData={packedData}
+                    setPackedData={setPackedData}
+                    onManualPackedRowAdd={(serial, date) => setPackedSerials(prev => new Map(prev).set(serial, date))}
                     onPackingFileSelect={handlePackingFile}
+                    onClearPacking={() => { setPackedSerials(new Map()); setPackedData([]); }}
                     onClear={resetFileUpload}
                     fileName={file?.name ?? persistedFileName ?? 'Unknown file'}
                   />

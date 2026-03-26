@@ -82,7 +82,8 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
     const availableJobs = React.useMemo(() => {
         const jobs = new Set<string>()
         packedSerials.forEach((_, serial) => {
-            const rootPart = serial.split('-')[0]
+            const strSerial = String(serial || '');
+            const rootPart = strSerial.split('-')[0]
             if (rootPart) jobs.add(rootPart)
         })
         return Array.from(jobs).sort()
@@ -104,7 +105,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             }
 
             if (selectedJob !== "all") {
-                if (!serial.startsWith(selectedJob + "-")) return
+                if (!String(serial || '').startsWith(selectedJob + "-")) return
             }
 
             const shift = getShiftForDate(date)
@@ -193,17 +194,18 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
             {packedSerials.size > 0 && (
                 <Card>
                     <CardHeader className="pb-2">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex flex-col gap-3">
                             <div>
                                 <CardTitle className="text-sm font-medium">Empacado por Turno</CardTitle>
                                 <CardDescription>
                                     {totalPackedFiltered.toLocaleString()} seriales en la selección
                                 </CardDescription>
                             </div>
-                            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                            {/* Filtros: apilados en móvil, en fila en sm+ */}
+                            <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
                                 <div className="w-full sm:w-[180px]">
                                     <Select value={selectedJob} onValueChange={setSelectedJob}>
-                                        <SelectTrigger className="h-8 text-[11px]">
+                                        <SelectTrigger className="h-9 text-[11px]">
                                             <SelectValue placeholder="Filtrar por Job" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -221,11 +223,11 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     </Select>
                                 </div>
 
-                                <div className="flex items-center gap-1 shrink-0 bg-muted/20 p-1 rounded-md border border-border/50">
+                                <div className="flex items-center gap-1 shrink-0 bg-muted/20 p-1 rounded-md border border-border/50 overflow-x-auto">
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-6 px-1.5 text-[10px] font-bold hover:bg-primary/10"
+                                        className="h-7 px-2 text-[10px] font-bold hover:bg-primary/10 shrink-0"
                                         onClick={() => {
                                             const yesterday = subDays(startOfToday(), 1);
                                             setStartDate(yesterday);
@@ -237,7 +239,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-6 px-1.5 text-[10px] font-bold hover:bg-primary/10"
+                                        className="h-7 px-2 text-[10px] font-bold hover:bg-primary/10 shrink-0"
                                         onClick={() => {
                                             const today = startOfToday();
                                             setStartDate(today);
@@ -246,11 +248,11 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                     >
                                         Hoy
                                     </Button>
-                                    <div className="w-[115px]">
+                                    <div className="w-[110px] shrink-0">
                                         <DatePicker date={startDate} setDate={setStartDate} label="Desde" />
                                     </div>
-                                    <span className="text-muted-foreground text-[10px]">al</span>
-                                    <div className="w-[115px]">
+                                    <span className="text-muted-foreground text-[10px] shrink-0">al</span>
+                                    <div className="w-[110px] shrink-0">
                                         <DatePicker date={endDate} setDate={setEndDate} label="Hasta" />
                                     </div>
                                 </div>
@@ -262,7 +264,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                                             size="sm"
                                             variant={activeShifts.has(s.id) ? 'default' : 'outline'}
                                             className={cn(
-                                                'h-7 px-2.5 text-xs font-bold transition-all',
+                                                'h-8 px-3 text-xs font-bold transition-all',
                                                 activeShifts.has(s.id) && 'text-white'
                                             )}
                                             style={activeShifts.has(s.id) ? { background: SHIFT_COLORS[s.id], borderColor: SHIFT_COLORS[s.id] } : {}}
@@ -276,7 +278,7 @@ export function AnalyticsDashboard({ data, packedSerials }: AnalyticsDashboardPr
                             </div>
                         </div>
                     </CardHeader>
-                    <CardContent className="h-[350px]">
+                    <CardContent className="h-[280px] md:h-[350px]">
                         {packByShift.length === 0 ? (
                             <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
                                 Sin datos para los turnos seleccionados
